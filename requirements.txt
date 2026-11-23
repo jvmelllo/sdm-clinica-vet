@@ -1,0 +1,6 @@
+# Dependências de EXECUÇÃO do sistema (API da clínica + API governamental simulada)
+Flask>=3.0,<4
+PyJWT>=2.8,<3
+requests>=2.31,<3
+PyMySQL>=1.1,<2        # driver do MySQL (não é necessário com DB_BACKEND=sqlite)
+cryptography>=42       # exigido pelo PyMySQL para autenticar no MySQL 8 (caching_sha2_password)

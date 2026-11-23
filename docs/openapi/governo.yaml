@@ -1,0 +1,629 @@
+openapi: 3.0.3
+info:
+  title: API Governamental SIMULADA (A3 – SDM)
+  version: 1.0.0
+  description: '**Serviço fictício**, criado só para o projeto acadêmico; não é integração com nenhum sistema oficial.
+
+
+    Recebe cadastro de animais por microchip e vacinações antirrábicas, devolve protocolos e permite **simular falhas**
+    (indisponibilidade, resposta lenta, erros de validação) para demonstrar pendência, reenvio e idempotência.
+
+
+    Autenticação: cabeçalho `X-API-Key` (chave de demonstração em `.env.example`).'
+servers:
+- url: http://localhost:5001
+  description: Execução local
+tags:
+- name: Sistema
+  description: Saúde.
+- name: Simulação de falhas
+  description: Controle da demonstração.
+- name: Animais
+  description: Cadastro por microchip.
+- name: Vacinações antirrábicas
+  description: Comunicação obrigatória.
+- name: Protocolos
+  description: Rastreio de operações.
+paths:
+  /api/governo/health:
+    get:
+      tags:
+      - Sistema
+      summary: Saúde do serviço
+      description: Devolve 503 quando o modo de simulação é INDISPONIVEL.
+      security: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Saude'
+        '503':
+          $ref: '#/components/responses/Erro503'
+  /api/governo/simulacao:
+    get:
+      tags:
+      - Simulação de falhas
+      summary: Ver o modo atual
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Simulacao'
+        '401':
+          $ref: '#/components/responses/Erro401'
+    put:
+      tags:
+      - Simulação de falhas
+      summary: Definir o modo (NORMAL / INDISPONIVEL / RESPOSTA_LENTA)
+      description: '`INDISPONIVEL`: 503 a tudo. `RESPOSTA_LENTA`: processa e grava, mas atrasa a resposta (o cliente
+        pode dar timeout com a operação já gravada). `falhar_proximas=N`: as próximas N chamadas falham.'
+      security:
+      - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulacaoNova'
+            example:
+              modo: INDISPONIVEL
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Simulacao'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/governo/animais:
+    post:
+      tags:
+      - Animais
+      summary: Cadastrar animal por microchip
+      description: Cadastro idempotente por `Idempotency-Key`. Microchip repetido sem a chave → 409 `ANIMAL_JA_CADASTRADO`.
+      parameters:
+      - &id002
+        name: Idempotency-Key
+        in: header
+        schema: &id001
+          type: string
+        description: 'Reenvios com a mesma chave devolvem a mesma resposta (campo `repetida: true`), sem duplicar.'
+      security:
+      - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnimalGov'
+      responses:
+        '201':
+          description: Cadastrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespostaOperacao'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+        '503':
+          $ref: '#/components/responses/Erro503'
+  /api/governo/animais/{microchip}:
+    get:
+      tags:
+      - Animais
+      summary: Consultar animal por microchip (inclui vacinações antirrábicas)
+      parameters:
+      - name: microchip
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnimalRegistrado'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '503':
+          $ref: '#/components/responses/Erro503'
+    put:
+      tags:
+      - Animais
+      summary: Atualizar cadastro do animal
+      parameters:
+      - name: microchip
+        in: path
+        required: true
+        schema: *id001
+      - *id002
+      security:
+      - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnimalGov'
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespostaOperacao'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '422':
+          $ref: '#/components/responses/Erro422'
+        '503':
+          $ref: '#/components/responses/Erro503'
+  /api/governo/vacinacoes-antirrabicas:
+    post:
+      tags:
+      - Vacinações antirrábicas
+      summary: Receber vacinação antirrábica
+      description: '`Idempotency-Key` **obrigatório**. Mesma vacinação com outra chave → 409 `VACINACAO_DUPLICADA`
+        (não duplica). Gera protocolo.'
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        schema: *id001
+        description: 'Reenvios com a mesma chave devolvem a mesma resposta (campo `repetida: true`), sem duplicar.'
+        required: true
+      security:
+      - apiKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VacinacaoGov'
+      responses:
+        '201':
+          description: Registrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RespostaOperacao'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+        '503':
+          $ref: '#/components/responses/Erro503'
+    get:
+      tags:
+      - Vacinações antirrábicas
+      summary: Listar vacinações recebidas
+      parameters:
+      - name: microchip
+        in: query
+        schema: *id001
+        description: Filtra por microchip.
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VacinacaoRegistrada'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '503':
+          $ref: '#/components/responses/Erro503'
+  /api/governo/operacoes/{protocolo}:
+    get:
+      tags:
+      - Protocolos
+      summary: Consultar uma operação pelo protocolo
+      parameters:
+      - name: protocolo
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - apiKey: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperacaoGov'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '503':
+          $ref: '#/components/responses/Erro503'
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    Erro:
+      type: object
+      properties:
+        erro:
+          type: object
+          properties:
+            codigo: *id001
+            mensagem: *id001
+            detalhes:
+              type: object
+          required:
+          - codigo
+          - mensagem
+    AnimalGov:
+      type: object
+      properties:
+        microchip:
+          type: string
+          description: 15 dígitos.
+          example: '900123456789012'
+        nome:
+          type: string
+          example: Thor
+        especie:
+          type: string
+          example: Cão
+        raca:
+          type: string
+          example: Labrador
+        sexo:
+          type: string
+          enum:
+          - MACHO
+          - FEMEA
+        data_nascimento: &id003
+          type: string
+          format: date
+          example: '2026-11-05'
+        situacao:
+          type: string
+          enum:
+          - ATIVO
+          - INATIVO
+          - OBITO
+        tutor:
+          type: object
+          properties:
+            nome_completo:
+              type: string
+              example: Maria Oliveira
+            cpf:
+              type: string
+              description: CPF válido (dígitos verificadores).
+              example: '52998224725'
+          required:
+          - nome_completo
+          - cpf
+      required:
+      - microchip
+      - nome
+      - especie
+      - sexo
+      - tutor
+    VacinacaoGov:
+      type: object
+      properties:
+        microchip:
+          type: string
+          example: '900123456789012'
+        animal:
+          type: object
+          properties:
+            id:
+              type: integer
+              description: Id do animal na clínica.
+            nome: *id001
+          required:
+          - id
+          - nome
+        data_aplicacao: *id003
+        vacina:
+          type: object
+          properties:
+            id_aplicacao:
+              type: integer
+              description: Id da vacina na clínica.
+            nome: *id001
+            fabricante: *id001
+            numero_lote: *id001
+          required:
+          - id_aplicacao
+          - nome
+          - fabricante
+          - numero_lote
+        veterinario:
+          type: object
+          properties:
+            nome_completo: *id001
+            crmv:
+              type: string
+              example: 12345/SP
+          required:
+          - nome_completo
+          - crmv
+      required:
+      - microchip
+      - animal
+      - data_aplicacao
+      - vacina
+      - veterinario
+    RespostaOperacao:
+      type: object
+      properties:
+        protocolo:
+          type: string
+          example: GOV-20261105-9D602A0D
+        status:
+          type: string
+          enum:
+          - PROCESSADA
+          - REJEITADA
+        tipo:
+          type: string
+          enum:
+          - CADASTRO_ANIMAL
+          - ATUALIZACAO_ANIMAL
+          - VACINACAO_ANTIRRABICA
+        microchip: *id001
+        mensagem: *id001
+        repetida:
+          type: boolean
+          description: true quando é a repetição de uma operação já processada (mesma Idempotency-Key).
+        animal_cadastrado_no_governo:
+          type: boolean
+        erro:
+          type: object
+          properties:
+            codigo: *id001
+            mensagem: *id001
+            detalhes:
+              type: object
+    AnimalRegistrado:
+      type: object
+      properties:
+        id: &id004
+          type: integer
+        microchip: *id001
+        nome: *id001
+        especie: *id001
+        raca:
+          type: string
+          nullable: true
+        sexo: *id001
+        data_nascimento:
+          type: string
+          format: date
+          example: '2026-11-05'
+          nullable: true
+        tutor_nome: *id001
+        tutor_cpf: *id001
+        situacao: *id001
+        criado_em: *id001
+        atualizado_em: *id001
+        vacinacoes_antirrabicas:
+          type: array
+          items:
+            type: object
+            properties:
+              protocolo: *id001
+              data_aplicacao: *id003
+              vacina: *id001
+              fabricante: *id001
+              numero_lote: *id001
+              veterinario_nome: *id001
+              veterinario_crmv: *id001
+    VacinacaoRegistrada:
+      type: object
+      properties:
+        id: *id004
+        protocolo: *id001
+        microchip: *id001
+        id_aplicacao_origem: *id004
+        animal_origem_id: *id004
+        animal_nome: *id001
+        data_aplicacao: *id003
+        vacina: *id001
+        fabricante: *id001
+        numero_lote: *id001
+        veterinario_nome: *id001
+        veterinario_crmv: *id001
+        criada_em: *id001
+    OperacaoGov:
+      type: object
+      properties:
+        protocolo: *id001
+        tipo: *id001
+        status:
+          type: string
+          enum:
+          - PROCESSADA
+          - REJEITADA
+        microchip:
+          type: string
+          nullable: true
+        codigo_http: *id004
+        criada_em: *id001
+        resposta:
+          type: object
+      description: Toda operação, inclusive as rejeitadas, recebe protocolo.
+    Saude:
+      type: object
+      properties:
+        servico: *id001
+        status:
+          type: string
+          enum:
+          - ok
+          - indisponivel
+        modo: *id001
+    Simulacao:
+      type: object
+      properties:
+        modo:
+          type: string
+          enum:
+          - NORMAL
+          - INDISPONIVEL
+          - RESPOSTA_LENTA
+        atraso_s:
+          type: number
+        falhar_proximas: *id004
+    SimulacaoNova:
+      type: object
+      properties:
+        modo:
+          type: string
+          enum:
+          - NORMAL
+          - INDISPONIVEL
+          - RESPOSTA_LENTA
+        atraso_s:
+          type: number
+          description: 'Só em RESPOSTA_LENTA: a operação é gravada e a resposta demora.'
+          example: 6
+        falhar_proximas:
+          type: integer
+          description: As próximas N chamadas recebem 503.
+          example: 0
+  responses:
+    Erro400:
+      description: Requisição malformada (JSON ausente/inválido) ou código inválido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: JSON_INVALIDO
+              mensagem: Requisição malformada (JSON ausente/inválido) ou código inválido.
+    Erro401:
+      description: Token ausente, inválido, expirado ou sessão encerrada; ou veterinário inativo/sem senha confirmada.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: NAO_AUTENTICADO
+              mensagem: Token ausente, inválido, expirado ou sessão encerrada.
+    Erro403:
+      description: 'Acesso bloqueado: veterinário inativo ou senha ainda não confirmada.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: VETERINARIO_INATIVO
+              mensagem: 'Acesso bloqueado: veterinário inativo ou senha ainda não confirmada.'
+    Erro404:
+      description: Recurso não encontrado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: NAO_ENCONTRADO
+              mensagem: Recurso não encontrado.
+    Erro409:
+      description: Conflito com o estado atual (duplicidade, vínculo existente, registro em uso).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: CPF_DUPLICADO
+              mensagem: Conflito com o estado atual (duplicidade, vínculo existente, registro em uso).
+    Erro422:
+      description: Dados inválidos (campo a campo em `detalhes`) ou regra de negócio violada.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: VALIDACAO
+              mensagem: Dados inválidos (campo a campo em `detalhes`) ou regra de negócio violada.
+    Erro429:
+      description: Muitas tentativas de confirmação de código.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: CODIGO_BLOQUEADO
+              mensagem: Muitas tentativas de confirmação de código.
+    Erro502:
+      description: Resposta inesperada do serviço externo.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: CEP_RESPOSTA_INVALIDA
+              mensagem: Resposta inesperada do serviço externo.
+    Erro503:
+      description: Serviço externo ou banco indisponível.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: CEP_INDISPONIVEL
+              mensagem: Serviço externo ou banco indisponível.
+    Erro504:
+      description: Tempo esgotado no serviço externo.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: CEP_TIMEOUT
+              mensagem: Tempo esgotado no serviço externo.

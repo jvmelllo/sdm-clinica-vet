@@ -1,0 +1,87 @@
+
+▸ 00 – Preparação (dados novos a cada execução)
+  ✓ Verificar saúde e gerar dados  (4/4)
+  ✓ Governo simulado em modo NORMAL  (2/2)
+
+▸ T01 – Login de veterinário ativo e confirmado
+  ✓ Login válido  (4/4)
+  ✓ Dados do usuário autenticado  (2/2)
+  ✓ Rota privada sem token é recusada  (2/2)
+
+▸ T02 – Bloqueio de veterinário inativo
+  ✓ Login de veterinário inativo  (2/2)
+
+▸ T03 – Bloqueio de veterinário com senha não confirmada
+  ✓ Login sem senha confirmada  (2/2)
+
+▸ T04 – Rejeição de senha incorreta
+  ✓ Senha incorreta  (2/2)
+  ✓ E-mail inexistente (mesma resposta)  (2/2)
+
+▸ T05 – Cadastro de tutor e CPF duplicado
+  ✓ Cadastrar tutor  (4/4)
+  ✓ Cadastrar o MESMO CPF novamente (409)  (2/2)
+  ✓ CPF inválido (422)  (3/3)
+
+▸ T06 – Consulta de CEP (ViaCEP)
+  ✓ CEP válido  (4/4)
+  ✓ CEP inexistente (404)  (2/2)
+  ✓ CEP com formato inválido (422)  (2/2)
+
+▸ T06b – (opcional) CEP com timeout/erro — exige scripts/viacep_falso.py
+  ✓ CEP que demora (timeout → 504)  (2/2)
+  ✓ CEP com serviço em erro (503)  (2/2)
+
+▸ T07 – Cadastro de animal e vínculo de microchip
+  ✓ Cadastrar animal  (3/3)
+  ✓ Vincular microchip (15 dígitos)  (4/4)
+
+▸ T08 – Rejeição de microchip já utilizado
+  ✓ Cadastrar segundo animal  (1/1)
+  ✓ Vincular o MESMO microchip ao segundo animal (409)  (2/2)
+  ✓ Microchip com formato inválido (422)  (2/2)
+
+▸ T09 – Consulta e histórico clínico
+  ✓ Registrar consulta realizada  (2/2)
+  ✓ Histórico de consultas do animal  (3/3)
+  ✓ Peso do animal foi atualizado pela consulta  (2/2)
+
+▸ T10 – Registro de vacina e próximas doses
+  ✓ Registrar vacina polivalente (com reforço)  (3/3)
+  ✓ Histórico de vacinação  (2/2)
+  ✓ Próximas doses  (3/3)
+
+▸ T11 – API governamental: cadastro e atualização de animal
+  ✓ Cadastrar animal no governo  (3/3)
+  ✓ Consultar animal por microchip  (3/3)
+  ✓ Atualizar o cadastro  (2/2)
+  ✓ Conferir a atualização  (2/2)
+  ✓ Erro de validação simulado (CPF inválido → 422)  (4/4)
+  ✓ Sem chave de API (401)  (2/2)
+
+▸ T12 – Envio obrigatório da vacina antirrábica
+  ✓ Registrar vacina antirrábica  (4/4)
+  ✓ Governo recebeu a vacinação  (4/4)
+  ✓ Estado da comunicação (local x governo)  (3/3)
+
+▸ T13 – Sem envio para vacina não antirrábica
+  ✓ Comunicação da vacina polivalente  (3/3)
+  ✓ Governo continua com apenas 1 vacinação do animal  (2/2)
+
+▸ T14 – Governo indisponível: vacina registrada e comunicação PENDENTE
+  ✓ Derrubar o governo simulado (503)  (2/2)
+  ✓ Registrar antirrábica com o governo fora do ar  (4/4)
+  ✓ A vacina continua registrada na clínica  (3/3)
+  ✓ Governo realmente está fora do ar (503)  (2/2)
+
+▸ T15 – Reenvio de pendência e confirmação posterior
+  ✓ Governo volta ao normal  (2/2)
+  ✓ Reenviar a pendência  (3/3)
+  ✓ Comunicação agora CONFIRMADA  (2/2)
+
+▸ T16 – Repetição de solicitação sem duplicar registro
+  ✓ Reenvio forçado de operação já confirmada  (4/4)
+  ✓ Governo tem apenas 2 vacinações (A e B), sem duplicata  (2/2)
+  ✓ Mesma Idempotency-Key direto no governo devolve a mesma resposta  (2/2)
+
+OK: 49 requisições, 128/128 asserções passaram em 3.9s

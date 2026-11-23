@@ -1,0 +1,44 @@
+sequenceDiagram
+    autonumber
+    actor V as Veterinário
+    participant FE as Frontend
+    participant API as API da clínica
+    participant DB as Banco da clínica
+    participant GOV as API governamental (simulada)
+
+    V->>FE: Registra vacina antirrábica (aplicada)
+    FE->>API: POST /api/vacinas (Bearer)
+    API->>API: Valida dados, vet ativo, animal com microchip vigente
+    API->>DB: BEGIN
+    API->>DB: INSERT vacina (APLICADA, antirrabica=1)
+    API->>DB: INSERT integracao_governo (PENDENTE, chave=vacina-ID-antirrabica)
+    API->>DB: COMMIT  (registro local garantido)
+    API->>DB: UPDATE integração → ENVIADA, tentativas+1
+    API->>GOV: POST /api/governo/vacinacoes-antirrabicas<br/>Idempotency-Key + microchip, animal, data, vacina, fabricante, lote, vet
+
+    alt Governo responde 201
+        GOV-->>API: 201 {protocolo}
+        API->>DB: UPDATE integração → CONFIRMADA + protocolo
+        API-->>FE: 201 vacina + comunicação CONFIRMADA
+    else Governo indisponível (503 / recusa de conexão)
+        GOV--xAPI: 503 / sem conexão
+        API->>DB: UPDATE integração → PENDENTE + mensagem de erro
+        API-->>FE: 201 vacina registrada + comunicação PENDENTE
+        Note over API,GOV: Vacina continua registrada localmente
+    else Timeout (governo pode ter processado)
+        GOV--xAPI: sem resposta no prazo
+        API->>DB: integração permanece ENVIADA ("incerta")
+        API-->>FE: 201 vacina registrada + comunicação ENVIADA
+    end
+
+    Note over V,GOV: Regularização posterior (manual ou automática)
+    V->>FE: "Reenviar" (ou thread de reenvio automático)
+    FE->>API: POST /api/integracoes/{id}/reenviar
+    API->>GOV: POST (mesma Idempotency-Key e mesmo payload)
+    alt Já havia sido processada
+        GOV-->>API: 200 {mesmo protocolo, repetida=true}
+    else Primeira vez que chega
+        GOV-->>API: 201 {protocolo}
+    end
+    API->>DB: UPDATE integração → CONFIRMADA + protocolo
+    API-->>FE: comunicação CONFIRMADA (sem duplicar no governo)

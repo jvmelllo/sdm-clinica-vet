@@ -1,0 +1,29 @@
+  ok  login com senha errada mostra erro genérico
+  ok  veterinário inativo é bloqueado
+  ok  veterinário com senha não confirmada é bloqueado e levado à confirmação por código
+  ok  login válido abre o painel
+  ok  ViaCEP: CEP inexistente tratado com mensagem
+  ok  ViaCEP: timeout tratado, com opção de preencher manualmente
+  ok  ViaCEP: CEP válido preenche o endereço
+  ok  tutor cadastrado e listado
+  ok  CPF duplicado é recusado
+  ok  animal novo: espécie não vem pré-selecionada e é obrigatória
+  ok  animal cadastrado (sem microchip) e ficha aberta automaticamente
+  ok  antirrábica: tela avisa que falta microchip
+  ok  microchip vinculado e cadastro CONFIRMADO no governo
+  ok  antirrábica registrada e CONFIRMADA pelo governo (com protocolo)
+  ok  vacina não antirrábica: sem comunicação ao governo
+  ok  governo indisponível: vacina registrada localmente e comunicação PENDENTE
+  ok  pendência reprocessada e CONFIRMADA após o governo voltar
+  ok  reenvio idempotente: o governo devolve o mesmo protocolo, sem duplicar
+  ok  catálogos, veterinários e tutores carregam sem erro
+  ok  consulta registrada e exibida no histórico
+  ok  duas consultas agendadas aparecem no histórico
+  ok  consulta agendada atendida pela tela (vira Realizada com diagnóstico e peso)
+  ok  consulta marcada como Não compareceu pela tela
+  ok  consulta realizada editada pela tela
+  ok  layout móvel renderiza
+  ok  logout volta para o login
+
+Fumaça da interface: 26 verificações OK, sem erros de JavaScript nem HTTP 5xx.
+Capturas em /home/claude/sdm-clinica-vet/docs/img/ui

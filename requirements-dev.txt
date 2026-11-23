@@ -1,0 +1,5 @@
+# Dependências para TESTES e GERAÇÃO DE DOCUMENTAÇÃO (opcionais para apenas rodar o sistema)
+-r requirements.txt
+pytest>=8
+PyYAML>=6              # gerar/validar a documentação OpenAPI
+playwright>=1.45       # somente scripts/smoke_ui.py  (depois: python -m playwright install chromium)

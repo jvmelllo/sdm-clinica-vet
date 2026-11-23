@@ -1,0 +1,12 @@
+stateDiagram-v2
+    [*] --> PENDENTE: registro local gravado<br/>(outbox, mesma transação)
+    PENDENTE --> ENVIADA: tentativa de envio iniciada
+    ENVIADA --> CONFIRMADA: governo respondeu 200/201<br/>com protocolo
+    ENVIADA --> PENDENTE: governo indisponível<br/>(503 / conexão recusada)
+    ENVIADA --> ENVIADA: timeout ou 5xx<br/>(resultado incerto, reenvio seguro)
+    ENVIADA --> FALHA: governo rejeitou (4xx)<br/>ou limite de tentativas automáticas
+    PENDENTE --> FALHA: limite de tentativas automáticas
+    FALHA --> ENVIADA: reenvio manual
+    PENDENTE --> ENVIADA: reenvio manual ou automático
+    CONFIRMADA --> CONFIRMADA: reenvio forçado (idempotente,<br/>não altera protocolo)
+    CONFIRMADA --> [*]

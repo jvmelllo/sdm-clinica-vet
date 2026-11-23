@@ -1,0 +1,15 @@
+# ambientes e caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+
+# dados gerados em execução (SQLite, e-mail simulado)
+data/*.db
+data/*.db-journal
+data/*.log
+
+# Node (runner da coleção não precisa de pacotes)
+node_modules/

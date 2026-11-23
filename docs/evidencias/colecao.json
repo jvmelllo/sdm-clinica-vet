@@ -1,0 +1,866 @@
+{
+  "ambiente": "SQLite + ViaCEP simulado",
+  "executado_em": "2026-11-11 10:39",
+  "resumo": {
+    "requisicoes": 49,
+    "asserções": 128,
+    "falhas": []
+  },
+  "relatorio": [
+    {
+      "pasta": "00 – Preparação (dados novos a cada execução)",
+      "requisicao": "Verificar saúde e gerar dados",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "api eq \"ok\"",
+          "ok": true
+        },
+        {
+          "nome": "banco eq \"ok\"",
+          "ok": true
+        },
+        {
+          "nome": "governo eq \"ok\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "00 – Preparação (dados novos a cada execução)",
+      "requisicao": "Governo simulado em modo NORMAL",
+      "metodo": "PUT",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "modo eq \"NORMAL\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T01 – Login de veterinário ativo e confirmado",
+      "requisicao": "Login válido",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "token str",
+          "ok": true
+        },
+        {
+          "nome": "veterinario.situacao eq \"ATIVO\"",
+          "ok": true
+        },
+        {
+          "nome": "veterinario.senha_confirmada verdadeiro",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T01 – Login de veterinário ativo e confirmado",
+      "requisicao": "Dados do usuário autenticado",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "email eq \"ana.souza@clinicavet.example\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T01 – Login de veterinário ativo e confirmado",
+      "requisicao": "Rota privada sem token é recusada",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 401",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo naonulo",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T02 – Bloqueio de veterinário inativo",
+      "requisicao": "Login de veterinário inativo",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 403",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"VETERINARIO_INATIVO\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T03 – Bloqueio de veterinário com senha não confirmada",
+      "requisicao": "Login sem senha confirmada",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 403",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"SENHA_NAO_CONFIRMADA\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T04 – Rejeição de senha incorreta",
+      "requisicao": "Senha incorreta",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 401",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"CREDENCIAIS_INVALIDAS\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T04 – Rejeição de senha incorreta",
+      "requisicao": "E-mail inexistente (mesma resposta)",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 401",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"CREDENCIAIS_INVALIDAS\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T05 – Cadastro de tutor e CPF duplicado",
+      "requisicao": "Cadastrar tutor",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 201",
+          "ok": true
+        },
+        {
+          "nome": "cpf eqvar \"cpf1\"",
+          "ok": true
+        },
+        {
+          "nome": "endereco.cidade eq \"São Paulo\"",
+          "ok": true
+        },
+        {
+          "nome": "situacao eq \"ATIVO\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T05 – Cadastro de tutor e CPF duplicado",
+      "requisicao": "Cadastrar o MESMO CPF novamente (409)",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 409",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"CPF_DUPLICADO\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T05 – Cadastro de tutor e CPF duplicado",
+      "requisicao": "CPF inválido (422)",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 422",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"VALIDACAO\"",
+          "ok": true
+        },
+        {
+          "nome": "erro.detalhes.cpf naonulo",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T06 – Consulta de CEP (ViaCEP)",
+      "requisicao": "CEP válido",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "logradouro eq \"Praça da Sé\"",
+          "ok": true
+        },
+        {
+          "nome": "uf eq \"SP\"",
+          "ok": true
+        },
+        {
+          "nome": "fonte eq \"ViaCEP\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T06 – Consulta de CEP (ViaCEP)",
+      "requisicao": "CEP inexistente (404)",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 404",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"CEP_NAO_ENCONTRADO\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T06 – Consulta de CEP (ViaCEP)",
+      "requisicao": "CEP com formato inválido (422)",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 422",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"VALIDACAO\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T06b – (opcional) CEP com timeout/erro — exige scripts/viacep_falso.py",
+      "requisicao": "CEP que demora (timeout → 504)",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 504",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"CEP_TIMEOUT\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T06b – (opcional) CEP com timeout/erro — exige scripts/viacep_falso.py",
+      "requisicao": "CEP com serviço em erro (503)",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 503",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"CEP_INDISPONIVEL\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T07 – Cadastro de animal e vínculo de microchip",
+      "requisicao": "Cadastrar animal",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 201",
+          "ok": true
+        },
+        {
+          "nome": "microchip_atual nulo",
+          "ok": true
+        },
+        {
+          "nome": "integracao_governo.situacao_cadastro eq \"SEM_MICROCHIP\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T07 – Cadastro de animal e vínculo de microchip",
+      "requisicao": "Vincular microchip (15 dígitos)",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 201",
+          "ok": true
+        },
+        {
+          "nome": "vinculo.codigo_microchip eqvar \"chipA\"",
+          "ok": true
+        },
+        {
+          "nome": "vinculo.situacao eq \"ATIVO\"",
+          "ok": true
+        },
+        {
+          "nome": "integracao_governo.situacao eq \"CONFIRMADA\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T08 – Rejeição de microchip já utilizado",
+      "requisicao": "Cadastrar segundo animal",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 201",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T08 – Rejeição de microchip já utilizado",
+      "requisicao": "Vincular o MESMO microchip ao segundo animal (409)",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 409",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"MICROCHIP_JA_UTILIZADO\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T08 – Rejeição de microchip já utilizado",
+      "requisicao": "Microchip com formato inválido (422)",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 422",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"VALIDACAO\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T09 – Consulta e histórico clínico",
+      "requisicao": "Registrar consulta realizada",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 201",
+          "ok": true
+        },
+        {
+          "nome": "situacao eq \"REALIZADA\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T09 – Consulta e histórico clínico",
+      "requisicao": "Histórico de consultas do animal",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "corpo tam 1",
+          "ok": true
+        },
+        {
+          "nome": "0.motivo eq \"Check-up de rotina\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T09 – Consulta e histórico clínico",
+      "requisicao": "Peso do animal foi atualizado pela consulta",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "peso_atual eq 13.1",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T10 – Registro de vacina e próximas doses",
+      "requisicao": "Registrar vacina polivalente (com reforço)",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 201",
+          "ok": true
+        },
+        {
+          "nome": "vacina.situacao eq \"APLICADA\"",
+          "ok": true
+        },
+        {
+          "nome": "vacina.antirrabica eq false",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T10 – Registro de vacina e próximas doses",
+      "requisicao": "Histórico de vacinação",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "0.nome_vacina eq \"V10\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T10 – Registro de vacina e próximas doses",
+      "requisicao": "Próximas doses",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "0.nome_vacina eq \"V10\"",
+          "ok": true
+        },
+        {
+          "nome": "0.situacao_prazo eq \"NO_PRAZO\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T11 – API governamental: cadastro e atualização de animal",
+      "requisicao": "Cadastrar animal no governo",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 201",
+          "ok": true
+        },
+        {
+          "nome": "status eq \"PROCESSADA\"",
+          "ok": true
+        },
+        {
+          "nome": "protocolo inclui \"GOV-\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T11 – API governamental: cadastro e atualização de animal",
+      "requisicao": "Consultar animal por microchip",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "nome eq \"Bolt\"",
+          "ok": true
+        },
+        {
+          "nome": "especie eq \"Cão\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T11 – API governamental: cadastro e atualização de animal",
+      "requisicao": "Atualizar o cadastro",
+      "metodo": "PUT",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "status eq \"PROCESSADA\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T11 – API governamental: cadastro e atualização de animal",
+      "requisicao": "Conferir a atualização",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "nome eq \"Bolt Atualizado\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T11 – API governamental: cadastro e atualização de animal",
+      "requisicao": "Erro de validação simulado (CPF inválido → 422)",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 422",
+          "ok": true
+        },
+        {
+          "nome": "status eq \"REJEITADA\"",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"VALIDACAO\"",
+          "ok": true
+        },
+        {
+          "nome": "protocolo naonulo",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T11 – API governamental: cadastro e atualização de animal",
+      "requisicao": "Sem chave de API (401)",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 401",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"NAO_AUTORIZADO\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T12 – Envio obrigatório da vacina antirrábica",
+      "requisicao": "Registrar vacina antirrábica",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 201",
+          "ok": true
+        },
+        {
+          "nome": "vacina.antirrabica verdadeiro",
+          "ok": true
+        },
+        {
+          "nome": "comunicacao_governo.situacao eq \"CONFIRMADA\"",
+          "ok": true
+        },
+        {
+          "nome": "comunicacao_governo.protocolo_externo inclui \"GOV-\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T12 – Envio obrigatório da vacina antirrábica",
+      "requisicao": "Governo recebeu a vacinação",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "corpo tam 1",
+          "ok": true
+        },
+        {
+          "nome": "0.numero_lote eqvar \"loteA\"",
+          "ok": true
+        },
+        {
+          "nome": "0.protocolo eqvar \"protocoloA\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T12 – Envio obrigatório da vacina antirrábica",
+      "requisicao": "Estado da comunicação (local x governo)",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "registro_local eq \"APLICADA\"",
+          "ok": true
+        },
+        {
+          "nome": "confirmacao_governo eq \"CONFIRMADA\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T13 – Sem envio para vacina não antirrábica",
+      "requisicao": "Comunicação da vacina polivalente",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "comunicacao_obrigatoria eq false",
+          "ok": true
+        },
+        {
+          "nome": "confirmacao_governo eq \"NAO_APLICAVEL\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T13 – Sem envio para vacina não antirrábica",
+      "requisicao": "Governo continua com apenas 1 vacinação do animal",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "corpo tam 1",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T14 – Governo indisponível: vacina registrada e comunicação PENDENTE",
+      "requisicao": "Derrubar o governo simulado (503)",
+      "metodo": "PUT",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "modo eq \"INDISPONIVEL\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T14 – Governo indisponível: vacina registrada e comunicação PENDENTE",
+      "requisicao": "Registrar antirrábica com o governo fora do ar",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 201",
+          "ok": true
+        },
+        {
+          "nome": "vacina.situacao eq \"APLICADA\"",
+          "ok": true
+        },
+        {
+          "nome": "comunicacao_governo.situacao eq \"PENDENTE\"",
+          "ok": true
+        },
+        {
+          "nome": "comunicacao_governo.protocolo_externo nulo",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T14 – Governo indisponível: vacina registrada e comunicação PENDENTE",
+      "requisicao": "A vacina continua registrada na clínica",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "situacao eq \"APLICADA\"",
+          "ok": true
+        },
+        {
+          "nome": "comunicacao_governo.situacao eq \"PENDENTE\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T14 – Governo indisponível: vacina registrada e comunicação PENDENTE",
+      "requisicao": "Governo realmente está fora do ar (503)",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 503",
+          "ok": true
+        },
+        {
+          "nome": "erro.codigo eq \"SERVICO_INDISPONIVEL\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T15 – Reenvio de pendência e confirmação posterior",
+      "requisicao": "Governo volta ao normal",
+      "metodo": "PUT",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "modo eq \"NORMAL\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T15 – Reenvio de pendência e confirmação posterior",
+      "requisicao": "Reenviar a pendência",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "situacao eq \"CONFIRMADA\"",
+          "ok": true
+        },
+        {
+          "nome": "protocolo_externo inclui \"GOV-\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T15 – Reenvio de pendência e confirmação posterior",
+      "requisicao": "Comunicação agora CONFIRMADA",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "confirmacao_governo eq \"CONFIRMADA\"",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T16 – Repetição de solicitação sem duplicar registro",
+      "requisicao": "Reenvio forçado de operação já confirmada",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "situacao eq \"CONFIRMADA\"",
+          "ok": true
+        },
+        {
+          "nome": "protocolo_externo eqvar \"protocoloB\"",
+          "ok": true
+        },
+        {
+          "nome": "ultima_resposta.repeticao_idempotente verdadeiro",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T16 – Repetição de solicitação sem duplicar registro",
+      "requisicao": "Governo tem apenas 2 vacinações (A e B), sem duplicata",
+      "metodo": "GET",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "corpo tam 2",
+          "ok": true
+        }
+      ]
+    },
+    {
+      "pasta": "T16 – Repetição de solicitação sem duplicar registro",
+      "requisicao": "Mesma Idempotency-Key direto no governo devolve a mesma resposta",
+      "metodo": "POST",
+      "resultados": [
+        {
+          "nome": "Status 200",
+          "ok": true
+        },
+        {
+          "nome": "repetida verdadeiro",
+          "ok": true
+        }
+      ]
+    }
+  ]
+}

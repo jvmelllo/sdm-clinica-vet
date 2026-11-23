@@ -1,0 +1,2502 @@
+{
+  "info": {
+    "name": "SDM – Clínica Veterinária (A3) – Testes T01 a T16",
+    "description": "Coleção dos 16 cenários de teste obrigatórios do projeto A3.\n\n1. Suba a pilha (`python scripts/run_all.py --sqlite --reset --viacep-falso`) e importe também o ambiente `SDM_Local`.\n2. Execute com **Collection Runner**, na ordem. Os cenários dependem uns dos outros (ids e tokens ficam em variáveis).\n3. A pasta 00 gera dados novos a cada execução; a pasta T06b só funciona com o ViaCEP falso.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base",
+      "value": "http://localhost:5000"
+    },
+    {
+      "key": "gov",
+      "value": "http://localhost:5001"
+    },
+    {
+      "key": "govKey",
+      "value": "chave-demo-governo"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "00 – Preparação (dados novos a cada execução)",
+      "description": "Gera CPFs, microchips, lotes e datas novos e confirma que a API, o banco e o governo simulado estão no ar.",
+      "item": [
+        {
+          "name": "Verificar saúde e gerar dados",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "function dv(d){var s=0,i;for(i=0;i<d.length;i++){s+=d[i]*(d.length+1-i);}return ((s*10)%11)%10;}",
+                  "function cpf(){var b=[],i;for(i=0;i<9;i++){b.push(Math.floor(Math.random()*10));}",
+                  "  if(b.every(function(x){return x===b[0];})){b[0]=(b[0]+1)%10;} b.push(dv(b)); b.push(dv(b)); return b.join('');}",
+                  "function chip(){var s='900',i;for(i=0;i<12;i++){s+=Math.floor(Math.random()*10);}return s;}",
+                  "function iso(ms){return new Date(Date.now()+ms).toISOString().slice(0,10);}",
+                  "var n=String(Date.now()).slice(-8);",
+                  "var v=pm.collectionVariables;",
+                  "v.set('suf',n); v.set('cpf1',cpf()); v.set('cpf2',cpf()); v.set('cpfGov',cpf());",
+                  "v.set('chipA',chip()); v.set('chipB',chip()); v.set('chipGov',chip());",
+                  "v.set('ontem',iso(-86400000)); v.set('proximaDose',iso(365*86400000)); v.set('validade',iso(400*86400000));",
+                  "v.set('loteA','LA'+n); v.set('loteB','LB'+n); v.set('loteV','LV'+n);",
+                  "v.set('token','');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"api eq \\\"ok\\\"\", function () { pm.expect(j.api).to.eql(\"ok\"); });",
+                  "pm.test(\"banco eq \\\"ok\\\"\", function () { pm.expect(j.banco).to.eql(\"ok\"); });",
+                  "pm.test(\"governo eq \\\"ok\\\"\", function () { pm.expect(j.governo).to.eql(\"ok\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/status",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Governo simulado em modo NORMAL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"modo eq \\\"NORMAL\\\"\", function () { pm.expect(j.modo).to.eql(\"NORMAL\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{govKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gov}}/api/governo/simulacao",
+              "host": [
+                "{{gov}}"
+              ],
+              "path": [
+                "api",
+                "governo",
+                "simulacao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"modo\": \"NORMAL\",\n  \"falhar_proximas\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T01 – Login de veterinário ativo e confirmado",
+      "description": "Autenticação com hash + JWT; rotas privadas exigem token.",
+      "item": [
+        {
+          "name": "Login válido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"token str\", function () { pm.expect(j.token).to.be.a(\"string\"); });",
+                  "pm.test(\"veterinario.situacao eq \\\"ATIVO\\\"\", function () { pm.expect(j.veterinario.situacao).to.eql(\"ATIVO\"); });",
+                  "pm.test(\"veterinario.senha_confirmada verdadeiro\", function () { pm.expect(j.veterinario.senha_confirmada).to.be.true; });",
+                  "pm.collectionVariables.set(\"token\", j.token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/auth/login",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ana.souza@clinicavet.example\",\n  \"senha\": \"Senha@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Dados do usuário autenticado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"email eq \\\"ana.souza@clinicavet.example\\\"\", function () { pm.expect(j.email).to.eql(\"ana.souza@clinicavet.example\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/auth/me",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Rota privada sem token é recusada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 401\", function () { pm.response.to.have.status(401); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo naonulo\", function () { pm.expect(j.erro.codigo).to.not.be.null; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/tutores",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "tutores"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T02 – Bloqueio de veterinário inativo",
+      "description": "Acesso negado a veterinário INATIVO, mesmo com a senha correta.",
+      "item": [
+        {
+          "name": "Login de veterinário inativo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 403\", function () { pm.response.to.have.status(403); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo eq \\\"VETERINARIO_INATIVO\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"VETERINARIO_INATIVO\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/auth/login",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"bruno.lima@clinicavet.example\",\n  \"senha\": \"Senha@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T03 – Bloqueio de veterinário com senha não confirmada",
+      "description": "Acesso negado até confirmar a senha com o código.",
+      "item": [
+        {
+          "name": "Login sem senha confirmada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 403\", function () { pm.response.to.have.status(403); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo eq \\\"SENHA_NAO_CONFIRMADA\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"SENHA_NAO_CONFIRMADA\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/auth/login",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"carla.mendes@clinicavet.example\",\n  \"senha\": \"Senha@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T04 – Rejeição de senha incorreta",
+      "description": "Mesma resposta para senha errada e e-mail inexistente (não revela cadastros).",
+      "item": [
+        {
+          "name": "Senha incorreta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 401\", function () { pm.response.to.have.status(401); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo eq \\\"CREDENCIAIS_INVALIDAS\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"CREDENCIAIS_INVALIDAS\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/auth/login",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ana.souza@clinicavet.example\",\n  \"senha\": \"senha-errada\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "E-mail inexistente (mesma resposta)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 401\", function () { pm.response.to.have.status(401); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo eq \\\"CREDENCIAIS_INVALIDAS\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"CREDENCIAIS_INVALIDAS\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/auth/login",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"ninguem@clinicavet.example\",\n  \"senha\": \"Senha@123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T05 – Cadastro de tutor e CPF duplicado",
+      "description": "Valida CPF, grava endereço e impede CPF repetido.",
+      "item": [
+        {
+          "name": "Cadastrar tutor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"cpf eqvar \\\"cpf1\\\"\", function () { pm.expect(j.cpf).to.eql(pm.collectionVariables.get(\"cpf1\")); });",
+                  "pm.test(\"endereco.cidade eq \\\"São Paulo\\\"\", function () { pm.expect(j.endereco.cidade).to.eql(\"São Paulo\"); });",
+                  "pm.test(\"situacao eq \\\"ATIVO\\\"\", function () { pm.expect(j.situacao).to.eql(\"ATIVO\"); });",
+                  "pm.collectionVariables.set(\"tutorId\", j.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/tutores",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "tutores"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome_completo\": \"Maria Oliveira\",\n  \"cpf\": \"{{cpf1}}\",\n  \"data_nascimento\": \"1990-05-10\",\n  \"email\": \"maria{{suf}}@example.com\",\n  \"telefone\": \"11912345678\",\n  \"endereco\": {\n    \"cep\": \"01001000\",\n    \"logradouro\": \"Praça da Sé\",\n    \"numero\": \"100\",\n    \"bairro\": \"Sé\",\n    \"cidade\": \"São Paulo\",\n    \"uf\": \"SP\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Cadastrar o MESMO CPF novamente (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", function () { pm.response.to.have.status(409); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo eq \\\"CPF_DUPLICADO\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"CPF_DUPLICADO\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/tutores",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "tutores"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome_completo\": \"Outra Pessoa\",\n  \"cpf\": \"{{cpf1}}\",\n  \"data_nascimento\": \"1990-05-10\",\n  \"email\": \"outra{{suf}}@example.com\",\n  \"telefone\": \"11912345678\",\n  \"endereco\": {\n    \"cep\": \"01001000\",\n    \"logradouro\": \"Praça da Sé\",\n    \"numero\": \"100\",\n    \"bairro\": \"Sé\",\n    \"cidade\": \"São Paulo\",\n    \"uf\": \"SP\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CPF inválido (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", function () { pm.response.to.have.status(422); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo eq \\\"VALIDACAO\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"VALIDACAO\"); });",
+                  "pm.test(\"erro.detalhes.cpf naonulo\", function () { pm.expect(j.erro.detalhes.cpf).to.not.be.null; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/tutores",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "tutores"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome_completo\": \"Joao Teste\",\n  \"cpf\": \"11111111111\",\n  \"data_nascimento\": \"1990-05-10\",\n  \"email\": \"joao{{suf}}@example.com\",\n  \"telefone\": \"11912345678\",\n  \"endereco\": {\n    \"cep\": \"01001000\",\n    \"logradouro\": \"Praça da Sé\",\n    \"numero\": \"100\",\n    \"bairro\": \"Sé\",\n    \"cidade\": \"São Paulo\",\n    \"uf\": \"SP\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T06 – Consulta de CEP (ViaCEP)",
+      "description": "Consome o ViaCEP e trata CEP inexistente.",
+      "item": [
+        {
+          "name": "CEP válido",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"logradouro eq \\\"Praça da Sé\\\"\", function () { pm.expect(j.logradouro).to.eql(\"Praça da Sé\"); });",
+                  "pm.test(\"uf eq \\\"SP\\\"\", function () { pm.expect(j.uf).to.eql(\"SP\"); });",
+                  "pm.test(\"fonte eq \\\"ViaCEP\\\"\", function () { pm.expect(j.fonte).to.eql(\"ViaCEP\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/cep/01001000",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "cep",
+                "01001000"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CEP inexistente (404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", function () { pm.response.to.have.status(404); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo eq \\\"CEP_NAO_ENCONTRADO\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"CEP_NAO_ENCONTRADO\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/cep/99999999",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "cep",
+                "99999999"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CEP com formato inválido (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", function () { pm.response.to.have.status(422); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo eq \\\"VALIDACAO\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"VALIDACAO\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/cep/123",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "cep",
+                "123"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T06b – (opcional) CEP com timeout/erro — exige scripts/viacep_falso.py",
+      "description": "Só funciona com VIACEP_URL apontando para o ViaCEP falso (python scripts/run_all.py --viacep-falso). Com o ViaCEP real, ignore esta pasta.",
+      "item": [
+        {
+          "name": "CEP que demora (timeout → 504)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 504\", function () { pm.response.to.have.status(504); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo eq \\\"CEP_TIMEOUT\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"CEP_TIMEOUT\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/cep/11111111",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "cep",
+                "11111111"
+              ]
+            }
+          }
+        },
+        {
+          "name": "CEP com serviço em erro (503)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 503\", function () { pm.response.to.have.status(503); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo eq \\\"CEP_INDISPONIVEL\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"CEP_INDISPONIVEL\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/cep/22222222",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "cep",
+                "22222222"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T07 – Cadastro de animal e vínculo de microchip",
+      "description": "O animal nasce sem microchip; o vínculo é comunicado ao governo.",
+      "item": [
+        {
+          "name": "Cadastrar animal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"microchip_atual nulo\", function () { pm.expect(j.microchip_atual).to.be.null; });",
+                  "pm.test(\"integracao_governo.situacao_cadastro eq \\\"SEM_MICROCHIP\\\"\", function () { pm.expect(j.integracao_governo.situacao_cadastro).to.eql(\"SEM_MICROCHIP\"); });",
+                  "pm.collectionVariables.set(\"animalId\", j.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/animais",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "animais"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Thor\",\n  \"data_nascimento\": \"2022-03-01\",\n  \"sexo\": \"MACHO\",\n  \"cor\": \"Caramelo\",\n  \"peso_atual\": 12.5,\n  \"tutor_id\": {{tutorId}},\n  \"especie_id\": 1,\n  \"raca_id\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Vincular microchip (15 dígitos)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"vinculo.codigo_microchip eqvar \\\"chipA\\\"\", function () { pm.expect(j.vinculo.codigo_microchip).to.eql(pm.collectionVariables.get(\"chipA\")); });",
+                  "pm.test(\"vinculo.situacao eq \\\"ATIVO\\\"\", function () { pm.expect(j.vinculo.situacao).to.eql(\"ATIVO\"); });",
+                  "pm.test(\"integracao_governo.situacao eq \\\"CONFIRMADA\\\"\", function () { pm.expect(j.integracao_governo.situacao).to.eql(\"CONFIRMADA\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/animais/{{animalId}}/microchip",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "animais",
+                "{{animalId}}",
+                "microchip"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"{{chipA}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T08 – Rejeição de microchip já utilizado",
+      "description": "O código é único e nunca reutilizável.",
+      "item": [
+        {
+          "name": "Cadastrar segundo animal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.collectionVariables.set(\"animalId2\", j.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/animais",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "animais"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nome\": \"Mia\",\n  \"data_nascimento\": \"2022-03-01\",\n  \"sexo\": \"MACHO\",\n  \"cor\": \"Caramelo\",\n  \"peso_atual\": 12.5,\n  \"tutor_id\": {{tutorId}},\n  \"especie_id\": 1,\n  \"raca_id\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Vincular o MESMO microchip ao segundo animal (409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 409\", function () { pm.response.to.have.status(409); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo eq \\\"MICROCHIP_JA_UTILIZADO\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"MICROCHIP_JA_UTILIZADO\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/animais/{{animalId2}}/microchip",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "animais",
+                "{{animalId2}}",
+                "microchip"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"{{chipA}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Microchip com formato inválido (422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", function () { pm.response.to.have.status(422); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo eq \\\"VALIDACAO\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"VALIDACAO\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/animais/{{animalId2}}/microchip",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "animais",
+                "{{animalId2}}",
+                "microchip"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"codigo\": \"123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T09 – Consulta e histórico clínico",
+      "description": "Registra consulta (atualiza o peso) e consulta o histórico do animal.",
+      "item": [
+        {
+          "name": "Registrar consulta realizada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"situacao eq \\\"REALIZADA\\\"\", function () { pm.expect(j.situacao).to.eql(\"REALIZADA\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/consultas",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "consultas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"animal_id\": {{animalId}},\n  \"data_hora\": \"{{ontem}} 10:00\",\n  \"motivo\": \"Check-up de rotina\",\n  \"diagnostico\": \"Saudável\",\n  \"peso_kg\": 13.1,\n  \"situacao\": \"REALIZADA\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Histórico de consultas do animal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"corpo tam 1\", function () { pm.expect(j).to.have.lengthOf(1); });",
+                  "pm.test(\"0.motivo eq \\\"Check-up de rotina\\\"\", function () { pm.expect(j[0].motivo).to.eql(\"Check-up de rotina\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/animais/{{animalId}}/consultas",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "animais",
+                "{{animalId}}",
+                "consultas"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Peso do animal foi atualizado pela consulta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"peso_atual eq 13.1\", function () { pm.expect(j.peso_atual).to.eql(13.1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/animais/{{animalId}}",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "animais",
+                "{{animalId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T10 – Registro de vacina e próximas doses",
+      "description": "Vacina com reforço aparece nas próximas doses.",
+      "item": [
+        {
+          "name": "Registrar vacina polivalente (com reforço)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"vacina.situacao eq \\\"APLICADA\\\"\", function () { pm.expect(j.vacina.situacao).to.eql(\"APLICADA\"); });",
+                  "pm.test(\"vacina.antirrabica eq false\", function () { pm.expect(j.vacina.antirrabica).to.eql(false); });",
+                  "pm.collectionVariables.set(\"vacinaPoliId\", j.vacina.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/vacinas",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "vacinas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"animal_id\": {{animalId}},\n  \"nome_vacina\": \"V10\",\n  \"tipo_vacina\": \"POLIVALENTE\",\n  \"dose\": \"Reforço anual\",\n  \"via_aplicacao\": \"SUBCUTANEA\",\n  \"data_aplicacao\": \"{{ontem}}\",\n  \"fabricante\": \"MSD\",\n  \"numero_lote\": \"{{loteV}}\",\n  \"validade_lote\": \"{{validade}}\",\n  \"data_proxima_dose\": \"{{proximaDose}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Histórico de vacinação",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"0.nome_vacina eq \\\"V10\\\"\", function () { pm.expect(j[0].nome_vacina).to.eql(\"V10\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/animais/{{animalId}}/vacinas",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "animais",
+                "{{animalId}}",
+                "vacinas"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Próximas doses",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"0.nome_vacina eq \\\"V10\\\"\", function () { pm.expect(j[0].nome_vacina).to.eql(\"V10\"); });",
+                  "pm.test(\"0.situacao_prazo eq \\\"NO_PRAZO\\\"\", function () { pm.expect(j[0].situacao_prazo).to.eql(\"NO_PRAZO\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/animais/{{animalId}}/vacinas/proximas-doses",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "animais",
+                "{{animalId}}",
+                "vacinas",
+                "proximas-doses"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T11 – API governamental: cadastro e atualização de animal",
+      "description": "Chamadas diretas ao serviço governamental simulado (chave X-API-Key).",
+      "item": [
+        {
+          "name": "Cadastrar animal no governo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"status eq \\\"PROCESSADA\\\"\", function () { pm.expect(j.status).to.eql(\"PROCESSADA\"); });",
+                  "pm.test(\"protocolo inclui \\\"GOV-\\\"\", function () { pm.expect(String(j.protocolo)).to.include(\"GOV-\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{govKey}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{chipGov}}-cad"
+              }
+            ],
+            "url": {
+              "raw": "{{gov}}/api/governo/animais",
+              "host": [
+                "{{gov}}"
+              ],
+              "path": [
+                "api",
+                "governo",
+                "animais"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"microchip\": \"{{chipGov}}\",\n  \"nome\": \"Bolt\",\n  \"especie\": \"Cão\",\n  \"raca\": \"Labrador\",\n  \"sexo\": \"MACHO\",\n  \"data_nascimento\": \"2022-03-01\",\n  \"situacao\": \"ATIVO\",\n  \"tutor\": {\n    \"nome_completo\": \"Maria Oliveira\",\n    \"cpf\": \"{{cpfGov}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Consultar animal por microchip",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"nome eq \\\"Bolt\\\"\", function () { pm.expect(j.nome).to.eql(\"Bolt\"); });",
+                  "pm.test(\"especie eq \\\"Cão\\\"\", function () { pm.expect(j.especie).to.eql(\"Cão\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{govKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gov}}/api/governo/animais/{{chipGov}}",
+              "host": [
+                "{{gov}}"
+              ],
+              "path": [
+                "api",
+                "governo",
+                "animais",
+                "{{chipGov}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Atualizar o cadastro",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"status eq \\\"PROCESSADA\\\"\", function () { pm.expect(j.status).to.eql(\"PROCESSADA\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{govKey}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{chipGov}}-upd"
+              }
+            ],
+            "url": {
+              "raw": "{{gov}}/api/governo/animais/{{chipGov}}",
+              "host": [
+                "{{gov}}"
+              ],
+              "path": [
+                "api",
+                "governo",
+                "animais",
+                "{{chipGov}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"microchip\": \"{{chipGov}}\",\n  \"nome\": \"Bolt Atualizado\",\n  \"especie\": \"Cão\",\n  \"raca\": \"Labrador\",\n  \"sexo\": \"MACHO\",\n  \"data_nascimento\": \"2022-03-01\",\n  \"situacao\": \"ATIVO\",\n  \"tutor\": {\n    \"nome_completo\": \"Maria Oliveira\",\n    \"cpf\": \"{{cpfGov}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Conferir a atualização",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"nome eq \\\"Bolt Atualizado\\\"\", function () { pm.expect(j.nome).to.eql(\"Bolt Atualizado\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{govKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gov}}/api/governo/animais/{{chipGov}}",
+              "host": [
+                "{{gov}}"
+              ],
+              "path": [
+                "api",
+                "governo",
+                "animais",
+                "{{chipGov}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Erro de validação simulado (CPF inválido → 422)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 422\", function () { pm.response.to.have.status(422); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"status eq \\\"REJEITADA\\\"\", function () { pm.expect(j.status).to.eql(\"REJEITADA\"); });",
+                  "pm.test(\"erro.codigo eq \\\"VALIDACAO\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"VALIDACAO\"); });",
+                  "pm.test(\"protocolo naonulo\", function () { pm.expect(j.protocolo).to.not.be.null; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{govKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gov}}/api/governo/animais",
+              "host": [
+                "{{gov}}"
+              ],
+              "path": [
+                "api",
+                "governo",
+                "animais"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"microchip\": \"{{chipB}}\",\n  \"nome\": \"Invalido\",\n  \"especie\": \"Cão\",\n  \"raca\": \"Labrador\",\n  \"sexo\": \"MACHO\",\n  \"data_nascimento\": \"2022-03-01\",\n  \"situacao\": \"ATIVO\",\n  \"tutor\": {\n    \"nome_completo\": \"X Y\",\n    \"cpf\": \"11111111111\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sem chave de API (401)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 401\", function () { pm.response.to.have.status(401); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo eq \\\"NAO_AUTORIZADO\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"NAO_AUTORIZADO\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{gov}}/api/governo/animais/{{chipGov}}",
+              "host": [
+                "{{gov}}"
+              ],
+              "path": [
+                "api",
+                "governo",
+                "animais",
+                "{{chipGov}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T12 – Envio obrigatório da vacina antirrábica",
+      "description": "Aplicar a antirrábica comunica o governo e guarda o protocolo.",
+      "item": [
+        {
+          "name": "Registrar vacina antirrábica",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"vacina.antirrabica verdadeiro\", function () { pm.expect(j.vacina.antirrabica).to.be.true; });",
+                  "pm.test(\"comunicacao_governo.situacao eq \\\"CONFIRMADA\\\"\", function () { pm.expect(j.comunicacao_governo.situacao).to.eql(\"CONFIRMADA\"); });",
+                  "pm.test(\"comunicacao_governo.protocolo_externo inclui \\\"GOV-\\\"\", function () { pm.expect(String(j.comunicacao_governo.protocolo_externo)).to.include(\"GOV-\"); });",
+                  "pm.collectionVariables.set(\"vacinaA\", j.vacina.id);",
+                  "pm.collectionVariables.set(\"protocoloA\", j.comunicacao_governo.protocolo_externo);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/vacinas",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "vacinas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"animal_id\": {{animalId}},\n  \"nome_vacina\": \"Antirrábica anual\",\n  \"tipo_vacina\": \"ANTIRRABICA\",\n  \"dose\": \"Dose única\",\n  \"via_aplicacao\": \"SUBCUTANEA\",\n  \"data_aplicacao\": \"{{ontem}}\",\n  \"fabricante\": \"Zoetis\",\n  \"numero_lote\": \"{{loteA}}\",\n  \"validade_lote\": \"{{validade}}\",\n  \"data_proxima_dose\": \"{{proximaDose}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Governo recebeu a vacinação",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"corpo tam 1\", function () { pm.expect(j).to.have.lengthOf(1); });",
+                  "pm.test(\"0.numero_lote eqvar \\\"loteA\\\"\", function () { pm.expect(j[0].numero_lote).to.eql(pm.collectionVariables.get(\"loteA\")); });",
+                  "pm.test(\"0.protocolo eqvar \\\"protocoloA\\\"\", function () { pm.expect(j[0].protocolo).to.eql(pm.collectionVariables.get(\"protocoloA\")); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{govKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gov}}/api/governo/vacinacoes-antirrabicas?microchip={{chipA}}",
+              "host": [
+                "{{gov}}"
+              ],
+              "path": [
+                "api",
+                "governo",
+                "vacinacoes-antirrabicas"
+              ],
+              "query": [
+                {
+                  "key": "microchip",
+                  "value": "{{chipA}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Estado da comunicação (local x governo)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"registro_local eq \\\"APLICADA\\\"\", function () { pm.expect(j.registro_local).to.eql(\"APLICADA\"); });",
+                  "pm.test(\"confirmacao_governo eq \\\"CONFIRMADA\\\"\", function () { pm.expect(j.confirmacao_governo).to.eql(\"CONFIRMADA\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/vacinas/{{vacinaA}}/comunicacao-governo",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "vacinas",
+                "{{vacinaA}}",
+                "comunicacao-governo"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T13 – Sem envio para vacina não antirrábica",
+      "description": "Outros tipos de vacina não geram comunicação ao governo.",
+      "item": [
+        {
+          "name": "Comunicação da vacina polivalente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"comunicacao_obrigatoria eq false\", function () { pm.expect(j.comunicacao_obrigatoria).to.eql(false); });",
+                  "pm.test(\"confirmacao_governo eq \\\"NAO_APLICAVEL\\\"\", function () { pm.expect(j.confirmacao_governo).to.eql(\"NAO_APLICAVEL\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/vacinas/{{vacinaPoliId}}/comunicacao-governo",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "vacinas",
+                "{{vacinaPoliId}}",
+                "comunicacao-governo"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Governo continua com apenas 1 vacinação do animal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"corpo tam 1\", function () { pm.expect(j).to.have.lengthOf(1); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{govKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gov}}/api/governo/vacinacoes-antirrabicas?microchip={{chipA}}",
+              "host": [
+                "{{gov}}"
+              ],
+              "path": [
+                "api",
+                "governo",
+                "vacinacoes-antirrabicas"
+              ],
+              "query": [
+                {
+                  "key": "microchip",
+                  "value": "{{chipA}}"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T14 – Governo indisponível: vacina registrada e comunicação PENDENTE",
+      "description": "A indisponibilidade não impede o registro local.",
+      "item": [
+        {
+          "name": "Derrubar o governo simulado (503)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"modo eq \\\"INDISPONIVEL\\\"\", function () { pm.expect(j.modo).to.eql(\"INDISPONIVEL\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{govKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gov}}/api/governo/simulacao",
+              "host": [
+                "{{gov}}"
+              ],
+              "path": [
+                "api",
+                "governo",
+                "simulacao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"modo\": \"INDISPONIVEL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Registrar antirrábica com o governo fora do ar",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", function () { pm.response.to.have.status(201); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"vacina.situacao eq \\\"APLICADA\\\"\", function () { pm.expect(j.vacina.situacao).to.eql(\"APLICADA\"); });",
+                  "pm.test(\"comunicacao_governo.situacao eq \\\"PENDENTE\\\"\", function () { pm.expect(j.comunicacao_governo.situacao).to.eql(\"PENDENTE\"); });",
+                  "pm.test(\"comunicacao_governo.protocolo_externo nulo\", function () { pm.expect(j.comunicacao_governo.protocolo_externo).to.be.null; });",
+                  "pm.collectionVariables.set(\"vacinaB\", j.vacina.id);",
+                  "pm.collectionVariables.set(\"integracaoB\", j.comunicacao_governo.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/vacinas",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "vacinas"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"animal_id\": {{animalId}},\n  \"nome_vacina\": \"Antirrábica anual\",\n  \"tipo_vacina\": \"ANTIRRABICA\",\n  \"dose\": \"Dose única\",\n  \"via_aplicacao\": \"SUBCUTANEA\",\n  \"data_aplicacao\": \"{{ontem}}\",\n  \"fabricante\": \"Zoetis\",\n  \"numero_lote\": \"{{loteB}}\",\n  \"validade_lote\": \"{{validade}}\",\n  \"data_proxima_dose\": \"{{proximaDose}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "A vacina continua registrada na clínica",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"situacao eq \\\"APLICADA\\\"\", function () { pm.expect(j.situacao).to.eql(\"APLICADA\"); });",
+                  "pm.test(\"comunicacao_governo.situacao eq \\\"PENDENTE\\\"\", function () { pm.expect(j.comunicacao_governo.situacao).to.eql(\"PENDENTE\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/vacinas/{{vacinaB}}",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "vacinas",
+                "{{vacinaB}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Governo realmente está fora do ar (503)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 503\", function () { pm.response.to.have.status(503); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"erro.codigo eq \\\"SERVICO_INDISPONIVEL\\\"\", function () { pm.expect(j.erro.codigo).to.eql(\"SERVICO_INDISPONIVEL\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{govKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gov}}/api/governo/vacinacoes-antirrabicas",
+              "host": [
+                "{{gov}}"
+              ],
+              "path": [
+                "api",
+                "governo",
+                "vacinacoes-antirrabicas"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T15 – Reenvio de pendência e confirmação posterior",
+      "description": "Com o governo de volta, o reenvio confirma a pendência.",
+      "item": [
+        {
+          "name": "Governo volta ao normal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"modo eq \\\"NORMAL\\\"\", function () { pm.expect(j.modo).to.eql(\"NORMAL\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{govKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gov}}/api/governo/simulacao",
+              "host": [
+                "{{gov}}"
+              ],
+              "path": [
+                "api",
+                "governo",
+                "simulacao"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"modo\": \"NORMAL\",\n  \"falhar_proximas\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reenviar a pendência",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"situacao eq \\\"CONFIRMADA\\\"\", function () { pm.expect(j.situacao).to.eql(\"CONFIRMADA\"); });",
+                  "pm.test(\"protocolo_externo inclui \\\"GOV-\\\"\", function () { pm.expect(String(j.protocolo_externo)).to.include(\"GOV-\"); });",
+                  "pm.collectionVariables.set(\"protocoloB\", j.protocolo_externo);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/integracoes/{{integracaoB}}/reenviar",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "integracoes",
+                "{{integracaoB}}",
+                "reenviar"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Comunicação agora CONFIRMADA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"confirmacao_governo eq \\\"CONFIRMADA\\\"\", function () { pm.expect(j.confirmacao_governo).to.eql(\"CONFIRMADA\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/vacinas/{{vacinaB}}/comunicacao-governo",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "vacinas",
+                "{{vacinaB}}",
+                "comunicacao-governo"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "T16 – Repetição de solicitação sem duplicar registro",
+      "description": "Idempotency-Key: o governo reconhece a repetição e devolve o mesmo protocolo.",
+      "item": [
+        {
+          "name": "Reenvio forçado de operação já confirmada",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"situacao eq \\\"CONFIRMADA\\\"\", function () { pm.expect(j.situacao).to.eql(\"CONFIRMADA\"); });",
+                  "pm.test(\"protocolo_externo eqvar \\\"protocoloB\\\"\", function () { pm.expect(j.protocolo_externo).to.eql(pm.collectionVariables.get(\"protocoloB\")); });",
+                  "pm.test(\"ultima_resposta.repeticao_idempotente verdadeiro\", function () { pm.expect(j.ultima_resposta.repeticao_idempotente).to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base}}/api/integracoes/{{integracaoB}}/reenviar?forcar=true",
+              "host": [
+                "{{base}}"
+              ],
+              "path": [
+                "api",
+                "integracoes",
+                "{{integracaoB}}",
+                "reenviar"
+              ],
+              "query": [
+                {
+                  "key": "forcar",
+                  "value": "true"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Governo tem apenas 2 vacinações (A e B), sem duplicata",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"corpo tam 2\", function () { pm.expect(j).to.have.lengthOf(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{govKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{gov}}/api/governo/vacinacoes-antirrabicas?microchip={{chipA}}",
+              "host": [
+                "{{gov}}"
+              ],
+              "path": [
+                "api",
+                "governo",
+                "vacinacoes-antirrabicas"
+              ],
+              "query": [
+                {
+                  "key": "microchip",
+                  "value": "{{chipA}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mesma Idempotency-Key direto no governo devolve a mesma resposta",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", function () { pm.response.to.have.status(200); });",
+                  "var j = {}; try { j = pm.response.json(); } catch (e) { j = {}; }",
+                  "pm.test(\"repetida verdadeiro\", function () { pm.expect(j.repetida).to.be.true; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "application/json"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{govKey}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{chipGov}}-cad"
+              }
+            ],
+            "url": {
+              "raw": "{{gov}}/api/governo/animais",
+              "host": [
+                "{{gov}}"
+              ],
+              "path": [
+                "api",
+                "governo",
+                "animais"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"microchip\": \"{{chipGov}}\",\n  \"nome\": \"Bolt\",\n  \"especie\": \"Cão\",\n  \"raca\": \"Labrador\",\n  \"sexo\": \"MACHO\",\n  \"data_nascimento\": \"2022-03-01\",\n  \"situacao\": \"ATIVO\",\n  \"tutor\": {\n    \"nome_completo\": \"Maria Oliveira\",\n    \"cpf\": \"{{cpfGov}}\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

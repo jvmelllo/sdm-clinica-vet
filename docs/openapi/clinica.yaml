@@ -1,0 +1,2798 @@
+openapi: 3.0.3
+info:
+  title: API da Clínica Veterinária (A3 – SDM)
+  version: 1.0.0
+  description: 'API REST **privada** do sistema de gestão da clínica veterinária (projeto acadêmico).
+
+
+    * Autenticação: `POST /api/auth/login` devolve um JWT; use **Authorize** com `Bearer <token>`.
+
+    * Erros seguem sempre `{"erro": {"codigo", "mensagem", "detalhes"}}`.
+
+    * Exclusão é **lógica** (DELETE inativa); listagens devolvem arrays e aceitam `limite`/`offset`.
+
+    * Dados e integrações governamentais são **fictícios/simulados**.'
+servers:
+- url: http://localhost:5000
+  description: Execução local
+tags:
+- name: Sistema
+  description: Saúde e indicadores.
+- name: Autenticação
+  description: Login com hash + código de confirmação; JWT revogável.
+- name: Veterinários
+  description: Profissionais com acesso ao sistema.
+- name: Endereços e CEP
+  description: Endereços e consumo do ViaCEP.
+- name: Tutores
+  description: Responsáveis pelos animais.
+- name: Espécies e raças
+  description: Catálogos.
+- name: Animais
+  description: Pacientes.
+- name: Microchip
+  description: Vínculo e histórico do microchip RFID.
+- name: Consultas
+  description: Histórico clínico.
+- name: Vacinas
+  description: Vacinação; a antirrábica é comunicada obrigatoriamente ao governo.
+- name: Integração com o governo
+  description: Controle de PENDENTE → ENVIADA → CONFIRMADA | FALHA, reenvio e idempotência.
+- name: Demonstração
+  description: Apoio à apresentação (somente desenvolvimento).
+paths:
+  /api/status:
+    get:
+      tags:
+      - Sistema
+      summary: Saúde da API, do banco e do governo
+      security: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Status'
+  /api/resumo:
+    get:
+      tags:
+      - Sistema
+      summary: Indicadores do painel
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResumoPainel'
+        '401':
+          $ref: '#/components/responses/Erro401'
+  /api/auth/login:
+    post:
+      tags:
+      - Autenticação
+      summary: Login do veterinário
+      description: Gera um JWT revogável. Bloqueia veterinário **inativo** e **sem senha confirmada**. Credenciais
+        erradas devolvem sempre a mesma mensagem (não revela se o e-mail existe); o motivo do bloqueio só aparece
+        a quem acertou a senha.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Login'
+            example:
+              email: ana.souza@clinicavet.example
+              senha: Senha@123
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResposta'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '403':
+          $ref: '#/components/responses/Erro403'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/auth/logout:
+    post:
+      tags:
+      - Autenticação
+      summary: Encerra (revoga) a sessão atual
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Mensagem'
+        '401':
+          $ref: '#/components/responses/Erro401'
+  /api/auth/me:
+    get:
+      tags:
+      - Autenticação
+      summary: Dados do veterinário autenticado
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Veterinario'
+        '401':
+          $ref: '#/components/responses/Erro401'
+  /api/auth/confirmar-senha:
+    post:
+      tags:
+      - Autenticação
+      summary: Confirma a senha com o código de 6 dígitos
+      description: O código é guardado como HMAC, expira e tem limite de tentativas (429 ao exceder).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmarSenha'
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Mensagem'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '422':
+          $ref: '#/components/responses/Erro422'
+        '429':
+          $ref: '#/components/responses/Erro429'
+  /api/auth/reenviar-codigo:
+    post:
+      tags:
+      - Autenticação
+      summary: Reenvia o código de confirmação (e-mail simulado)
+      description: Resposta sempre igual, exista ou não o e-mail. O e-mail simulado é gravado em `data/emails_simulado.log`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailEntrada'
+      responses:
+        '202':
+          description: Aceito.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Mensagem'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/veterinarios:
+    get:
+      tags:
+      - Veterinários
+      summary: Listar veterinário
+      parameters:
+      - &id003
+        name: situacao
+        in: query
+        schema:
+          type: string
+          enum:
+          - ATIVO
+          - INATIVO
+        description: Filtra por situação.
+      - &id004
+        name: q
+        in: query
+        schema: &id002
+          type: string
+        description: Busca por texto.
+      - &id005
+        name: limite
+        in: query
+        schema:
+          type: integer
+          default: 100
+          maximum: 500
+        description: Itens por página.
+      - &id006
+        name: offset
+        in: query
+        schema:
+          type: integer
+          default: 0
+        description: Deslocamento.
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Veterinario'
+        '401':
+          $ref: '#/components/responses/Erro401'
+    post:
+      tags:
+      - Veterinários
+      summary: Cadastrar veterinário
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VeterinarioNovo'
+      responses:
+        '201':
+          description: Criado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Veterinario'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/veterinarios/{id}:
+    get:
+      tags:
+      - Veterinários
+      summary: Consultar veterinário
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: &id001
+          type: integer
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Veterinario'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+    put:
+      tags:
+      - Veterinários
+      summary: Alterar veterinário
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VeterinarioNovo'
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Veterinario'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+    delete:
+      tags:
+      - Veterinários
+      summary: Inativar veterinário (exclusão lógica)
+      description: 'Nunca apaga fisicamente: o histórico clínico e a integridade referencial são preservados.'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Veterinario'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+  /api/veterinarios/{id}/reativar:
+    post:
+      tags:
+      - Veterinários
+      summary: Reativar veterinário
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Veterinario'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/cep/{cep}:
+    get:
+      tags:
+      - Endereços e CEP
+      summary: Consulta o ViaCEP
+      description: 'Consome a API pública ViaCEP com timeout. Falhas: 404 CEP inexistente, 504 timeout, 503 serviço
+        fora do ar, 502 resposta inválida. Em todas o frontend permite preencher o endereço manualmente.'
+      parameters:
+      - name: cep
+        in: path
+        required: true
+        schema: *id002
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CepResposta'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '422':
+          $ref: '#/components/responses/Erro422'
+        '502':
+          $ref: '#/components/responses/Erro502'
+        '503':
+          $ref: '#/components/responses/Erro503'
+        '504':
+          $ref: '#/components/responses/Erro504'
+  /api/enderecos:
+    post:
+      tags:
+      - Endereços e CEP
+      summary: Cadastrar endereço
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnderecoNovo'
+      responses:
+        '201':
+          description: Criado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Endereco'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/enderecos/{id}:
+    get:
+      tags:
+      - Endereços e CEP
+      summary: Consultar endereço
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Endereco'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+    put:
+      tags:
+      - Endereços e CEP
+      summary: Alterar endereço
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnderecoNovo'
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Endereco'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/tutores:
+    get:
+      tags:
+      - Tutores
+      summary: Listar tutor
+      parameters:
+      - *id003
+      - *id004
+      - *id005
+      - *id006
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TutorLista'
+        '401':
+          $ref: '#/components/responses/Erro401'
+    post:
+      tags:
+      - Tutores
+      summary: Cadastrar tutor
+      description: CPF único (409 `CPF_DUPLICADO`). Aceita o endereço aninhado.
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TutorNovo'
+      responses:
+        '201':
+          description: Criado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tutor'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/tutores/{id}:
+    get:
+      tags:
+      - Tutores
+      summary: Consultar tutor
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tutor'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+    put:
+      tags:
+      - Tutores
+      summary: Alterar tutor
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TutorNovo'
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tutor'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+    delete:
+      tags:
+      - Tutores
+      summary: Inativar tutor (exclusão lógica)
+      description: 'Nunca apaga fisicamente: o histórico clínico e a integridade referencial são preservados.'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tutor'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+  /api/tutores/{id}/reativar:
+    post:
+      tags:
+      - Tutores
+      summary: Reativar tutor
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tutor'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/especies:
+    get:
+      tags:
+      - Espécies e raças
+      summary: Listar espécie
+      parameters:
+      - &id007
+        name: situacao
+        in: query
+        schema:
+          type: string
+          enum:
+          - ATIVA
+          - INATIVA
+        description: Filtra por situação.
+      - *id005
+      - *id006
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Especie'
+        '401':
+          $ref: '#/components/responses/Erro401'
+    post:
+      tags:
+      - Espécies e raças
+      summary: Cadastrar espécie
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EspecieNova'
+      responses:
+        '201':
+          description: Criado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Especie'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/especies/{id}:
+    get:
+      tags:
+      - Espécies e raças
+      summary: Consultar espécie
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Especie'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+    put:
+      tags:
+      - Espécies e raças
+      summary: Alterar espécie
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EspecieNova'
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Especie'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+    delete:
+      tags:
+      - Espécies e raças
+      summary: Inativar espécie (exclusão lógica)
+      description: 'Nunca apaga fisicamente: o histórico clínico e a integridade referencial são preservados.'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Especie'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+  /api/especies/{id}/reativar:
+    post:
+      tags:
+      - Espécies e raças
+      summary: Reativar espécie
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Especie'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/racas:
+    get:
+      tags:
+      - Espécies e raças
+      summary: Listar raça
+      parameters:
+      - name: especie_id
+        in: query
+        schema: *id001
+        description: Filtra pela espécie.
+      - *id007
+      - *id005
+      - *id006
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Raca'
+        '401':
+          $ref: '#/components/responses/Erro401'
+    post:
+      tags:
+      - Espécies e raças
+      summary: Cadastrar raça
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RacaNova'
+      responses:
+        '201':
+          description: Criado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Raca'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/racas/{id}:
+    get:
+      tags:
+      - Espécies e raças
+      summary: Consultar raça
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Raca'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+    put:
+      tags:
+      - Espécies e raças
+      summary: Alterar raça
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RacaNova'
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Raca'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+    delete:
+      tags:
+      - Espécies e raças
+      summary: Inativar raça (exclusão lógica)
+      description: 'Nunca apaga fisicamente: o histórico clínico e a integridade referencial são preservados.'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Raca'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+  /api/racas/{id}/reativar:
+    post:
+      tags:
+      - Espécies e raças
+      summary: Reativar raça
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Raca'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/animais:
+    get:
+      tags:
+      - Animais
+      summary: Listar animal
+      parameters:
+      - *id003
+      - *id004
+      - name: tutor_id
+        in: query
+        schema: *id001
+        description: Animais de um tutor.
+      - name: especie_id
+        in: query
+        schema: *id001
+        description: Por espécie.
+      - name: microchip
+        in: query
+        schema: *id002
+        description: Por código de microchip.
+      - *id005
+      - *id006
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AnimalLista'
+        '401':
+          $ref: '#/components/responses/Erro401'
+    post:
+      tags:
+      - Animais
+      summary: Cadastrar animal
+      description: O animal nasce SEM microchip; vincule-o em `POST /api/animais/{id}/microchip`.
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnimalNovo'
+      responses:
+        '201':
+          description: Criado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Animal'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/animais/{id}:
+    get:
+      tags:
+      - Animais
+      summary: Consultar animal
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Animal'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+    put:
+      tags:
+      - Animais
+      summary: Alterar animal
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnimalNovo'
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Animal'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+    delete:
+      tags:
+      - Animais
+      summary: Inativar animal (exclusão lógica)
+      description: 'Nunca apaga fisicamente: o histórico clínico e a integridade referencial são preservados.'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Animal'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+  /api/animais/{id}/reativar:
+    post:
+      tags:
+      - Animais
+      summary: Reativar animal
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Animal'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/animais/{id}/microchip:
+    post:
+      tags:
+      - Microchip
+      summary: Vincular ou substituir o microchip RFID
+      description: Código de 15 dígitos, **único e nunca reutilizável**. Um animal tem 1 microchip vigente; a troca
+        exige `substituir=true` e o motivo, e o vínculo antigo é preservado no histórico. O cadastro é comunicado
+        ao governo (se estiver fora do ar, fica PENDENTE).
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MicrochipNovo'
+            example:
+              codigo: '900123456789012'
+      responses:
+        '201':
+          description: Vinculado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MicrochipResposta'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/animais/{id}/microchips:
+    get:
+      tags:
+      - Microchip
+      summary: Histórico de microchips do animal
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/VinculoMicrochip'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+  /api/animais/{id}/consultas:
+    get:
+      tags:
+      - Consultas
+      summary: Histórico de consultas do animal
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - *id005
+      - *id006
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Consulta'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+  /api/animais/{id}/vacinas:
+    get:
+      tags:
+      - Vacinas
+      summary: Histórico de vacinação (com status no governo)
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Vacina'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+  /api/animais/{id}/vacinas/proximas-doses:
+    get:
+      tags:
+      - Vacinas
+      summary: Próximas doses e reforços
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProximaDose'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+  /api/animais/{id}/integracao-governo:
+    get:
+      tags:
+      - Integração com o governo
+      summary: Situação da integração do animal + operações
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnimalIntegracaoGoverno'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+  /api/animais/{id}/sincronizar:
+    post:
+      tags:
+      - Integração com o governo
+      summary: Sincronização manual com o governo
+      description: Reenvia o cadastro pendente ou comunica a atualização dos dados.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SincronizarResposta'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/consultas:
+    get:
+      tags:
+      - Consultas
+      summary: Listar consultas
+      parameters:
+      - name: animal_id
+        in: query
+        schema: *id001
+        description: Do animal.
+      - name: situacao
+        in: query
+        schema:
+          type: string
+          enum:
+          - AGENDADA
+          - REALIZADA
+          - CANCELADA
+          - NAO_COMPARECEU
+        description: Por situação.
+      - *id005
+      - *id006
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Consulta'
+        '401':
+          $ref: '#/components/responses/Erro401'
+    post:
+      tags:
+      - Consultas
+      summary: Registrar consulta
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsultaNova'
+            example:
+              animal_id: 1
+              data_hora: 2026-11-05 14:30
+              motivo: Check-up
+              diagnostico: Saudável
+              peso_kg: 12.8
+              situacao: REALIZADA
+      responses:
+        '201':
+          description: Criada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consulta'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/consultas/{id}:
+    get:
+      tags:
+      - Consultas
+      summary: Consultar consulta
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consulta'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+    put:
+      tags:
+      - Consultas
+      summary: Alterar consulta
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsultaNova'
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consulta'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+    delete:
+      tags:
+      - Consultas
+      summary: Cancelar consulta
+      description: Consulta REALIZADA faz parte do histórico clínico e não pode ser cancelada (409).
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consulta'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+  /api/vacinas:
+    post:
+      tags:
+      - Vacinas
+      summary: Registrar vacina
+      description: 'Se for **antirrábica aplicada**: exige microchip ativo (422 `ANIMAL_SEM_MICROCHIP`), grava o
+        registro local junto com a solicitação PENDENTE (outbox, mesma transação) e só então comunica o governo.
+        A resposta distingue *vacina registrada* de *governo confirmou*. Vacinas de outros tipos não geram comunicação.'
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VacinaNova'
+            example:
+              animal_id: 1
+              nome_vacina: Antirrábica anual
+              tipo_vacina: ANTIRRABICA
+              dose: Dose única
+              via_aplicacao: SUBCUTANEA
+              data_aplicacao: '2026-11-05'
+              fabricante: Zoetis
+              numero_lote: L2026-0457
+              validade_lote: '2027-08-31'
+              data_proxima_dose: '2027-11-05'
+      responses:
+        '201':
+          description: Registrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VacinaResposta'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/vacinas/{id}:
+    get:
+      tags:
+      - Vacinas
+      summary: Consultar vacina
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vacina'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+    delete:
+      tags:
+      - Vacinas
+      summary: Cancelar vacina agendada
+      description: Vacina já APLICADA não pode ser cancelada (409).
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Vacina'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+  /api/vacinas/{id}/aplicar:
+    post:
+      tags:
+      - Vacinas
+      summary: Aplicar uma vacina agendada
+      description: Informa lote e validade; se for antirrábica, comunica ao governo.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VacinaAplicar'
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VacinaResposta'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+        '409':
+          $ref: '#/components/responses/Erro409'
+        '422':
+          $ref: '#/components/responses/Erro422'
+  /api/vacinas/{id}/comunicacao-governo:
+    get:
+      tags:
+      - Vacinas
+      summary: Estado da comunicação ao governo
+      description: Mostra separadamente o registro local e a confirmação externa (PENDENTE/ENVIADA/CONFIRMADA/FALHA/NAO_APLICAVEL).
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComunicacaoGoverno'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+  /api/integracoes:
+    get:
+      tags:
+      - Integração com o governo
+      summary: Listar comunicações com o governo
+      parameters:
+      - name: situacao
+        in: query
+        schema: &id013
+          type: string
+          enum: &id014
+          - PENDENTE
+          - ENVIADA
+          - CONFIRMADA
+          - FALHA
+          description: Estados da comunicação com o governo.
+        description: Por situação.
+      - name: tipo_operacao
+        in: query
+        schema:
+          type: string
+          enum:
+          - CADASTRO_ANIMAL
+          - ATUALIZACAO_ANIMAL
+          - VACINACAO_ANTIRRABICA
+        description: Por tipo.
+      - name: animal_id
+        in: query
+        schema: *id001
+        description: Do animal.
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Integracao'
+        '401':
+          $ref: '#/components/responses/Erro401'
+  /api/integracoes/{id}:
+    get:
+      tags:
+      - Integração com o governo
+      summary: Detalhe de uma comunicação (com o payload enviado)
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Integracao'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+  /api/integracoes/{id}/reenviar:
+    post:
+      tags:
+      - Integração com o governo
+      summary: Reenviar uma comunicação
+      description: 'Reenvio manual. Uma operação já CONFIRMADA só é reenviada com `?forcar=true`, o que demonstra
+        a **idempotência**: o governo reconhece a repetição e devolve o mesmo protocolo, sem duplicar.'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema: *id001
+      - name: forcar
+        in: query
+        schema: &id008
+          type: boolean
+        description: Reenvia mesmo uma operação já confirmada.
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntegracaoEnvio'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '404':
+          $ref: '#/components/responses/Erro404'
+  /api/integracoes/reprocessar-pendentes:
+    post:
+      tags:
+      - Integração com o governo
+      summary: Reprocessar todas as pendências
+      description: Reenvia PENDENTE/ENVIADA. Se o governo seguir fora do ar, não insiste nas demais.
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReprocessarResumo'
+        '401':
+          $ref: '#/components/responses/Erro401'
+  /api/demo/governo/simulacao:
+    get:
+      tags:
+      - Demonstração
+      summary: Ver o modo de falha do governo simulado
+      description: Disponível só com `DEMO_SIMULACAO=1`. A chave da API governamental fica no servidor.
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Simulacao'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '503':
+          $ref: '#/components/responses/Erro503'
+    put:
+      tags:
+      - Demonstração
+      summary: Provocar indisponibilidade / lentidão do governo simulado
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulacaoNova'
+            example:
+              modo: INDISPONIVEL
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Simulacao'
+        '400':
+          $ref: '#/components/responses/Erro400'
+        '401':
+          $ref: '#/components/responses/Erro401'
+        '422':
+          $ref: '#/components/responses/Erro422'
+        '503':
+          $ref: '#/components/responses/Erro503'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Erro:
+      type: object
+      properties:
+        erro:
+          type: object
+          properties:
+            codigo: *id002
+            mensagem: *id002
+            detalhes:
+              type: object
+              additionalProperties: true
+          required:
+          - codigo
+          - mensagem
+      required:
+      - erro
+      description: Formato único de erro de toda a API.
+    Login:
+      type: object
+      properties:
+        email:
+          type: string
+          example: ana.souza@clinicavet.example
+        senha:
+          type: string
+          example: Senha@123
+      required:
+      - email
+      - senha
+    LoginResposta:
+      type: object
+      properties:
+        token:
+          type: string
+          description: 'JWT (HS256). Enviar em `Authorization: Bearer <token>`.'
+        tipo:
+          type: string
+          example: Bearer
+        expira_em: *id002
+        veterinario:
+          $ref: '#/components/schemas/Veterinario'
+    ConfirmarSenha:
+      type: object
+      properties:
+        email: *id002
+        codigo:
+          type: string
+          description: Código de 6 dígitos recebido por e-mail (simulado).
+          example: '123456'
+      required:
+      - email
+      - codigo
+    EmailEntrada:
+      type: object
+      properties:
+        email: *id002
+      required:
+      - email
+    Mensagem:
+      type: object
+      properties:
+        mensagem: *id002
+        codigo_simulado:
+          type: string
+          description: Só aparece em desenvolvimento (EXPOR_CODIGO_NA_RESPOSTA=1).
+    Veterinario:
+      type: object
+      properties:
+        id: *id001
+        nome_completo: *id002
+        cpf: *id002
+        crmv_numero: *id002
+        crmv_uf: *id002
+        email: *id002
+        telefone: *id002
+        senha_confirmada: *id008
+        senha_confirmada_em:
+          type: string
+          nullable: true
+        data_cadastro: *id002
+        situacao: &id009
+          type: string
+          enum:
+          - ATIVO
+          - INATIVO
+        ultimo_acesso_em:
+          type: string
+          nullable: true
+      description: Nunca expõe o hash da senha.
+    VeterinarioNovo:
+      type: object
+      properties:
+        nome_completo:
+          type: string
+          example: Dr. Carlos Pereira
+        cpf:
+          type: string
+          example: '52998224725'
+        crmv_numero:
+          type: string
+          example: '67890'
+        crmv_uf:
+          type: string
+          example: SP
+        email:
+          type: string
+          example: carlos.pereira@clinicavet.example
+        telefone:
+          type: string
+          example: '11987654321'
+        senha:
+          type: string
+          description: Mínimo 8 caracteres com letras e números. Guardada só como hash.
+          example: Senha@456
+      required:
+      - nome_completo
+      - cpf
+      - crmv_numero
+      - crmv_uf
+      - email
+      - telefone
+      - senha
+    VeterinarioCriado:
+      allOf:
+      - $ref: '#/components/schemas/Veterinario'
+      - type: object
+        properties:
+          codigo_simulado: *id002
+    CepResposta:
+      type: object
+      properties:
+        cep: *id002
+        logradouro: *id002
+        complemento: *id002
+        bairro: *id002
+        cidade: *id002
+        uf: *id002
+        codigo_ibge:
+          type: string
+          nullable: true
+        fonte:
+          type: string
+          example: ViaCEP
+    Endereco:
+      type: object
+      properties:
+        id: *id001
+        cep: *id002
+        logradouro: *id002
+        numero: *id002
+        complemento:
+          type: string
+          nullable: true
+        bairro: *id002
+        cidade: *id002
+        uf: *id002
+        codigo_ibge:
+          type: string
+          nullable: true
+    EnderecoNovo:
+      type: object
+      properties:
+        cep:
+          type: string
+          example: '01001000'
+        logradouro:
+          type: string
+          example: Praça da Sé
+        numero:
+          type: string
+          example: '100'
+        complemento: *id002
+        bairro:
+          type: string
+          example: Sé
+        cidade:
+          type: string
+          example: São Paulo
+        uf:
+          type: string
+          example: SP
+        codigo_ibge:
+          type: string
+          description: 7 dígitos (opcional).
+          example: '3550308'
+      required:
+      - cep
+      - logradouro
+      - numero
+      - bairro
+      - cidade
+      - uf
+    Tutor:
+      type: object
+      properties:
+        id: *id001
+        nome_completo: *id002
+        cpf: *id002
+        data_nascimento: &id010
+          type: string
+          format: date
+          example: '2026-11-05'
+        email: *id002
+        telefone: *id002
+        endereco_id: *id001
+        data_cadastro: *id002
+        situacao: *id009
+        endereco:
+          $ref: '#/components/schemas/Endereco'
+    TutorLista:
+      type: object
+      properties:
+        id: *id001
+        nome_completo: *id002
+        cpf: *id002
+        data_nascimento: *id010
+        email: *id002
+        telefone: *id002
+        endereco_id: *id001
+        data_cadastro: *id002
+        situacao: *id009
+        cidade: *id002
+        uf: *id002
+        total_animais: *id001
+    TutorNovo:
+      type: object
+      properties:
+        nome_completo:
+          type: string
+          example: Maria Oliveira
+        cpf:
+          type: string
+          example: '52998224725'
+        data_nascimento:
+          type: string
+          format: date
+          example: '1990-05-10'
+        email:
+          type: string
+          example: maria.oliveira@example.com
+        telefone:
+          type: string
+          example: '11912345678'
+        endereco:
+          $ref: '#/components/schemas/EnderecoNovo'
+        endereco_id:
+          type: integer
+          description: 'Alternativa a `endereco`: reutiliza um endereço já cadastrado.'
+      required:
+      - nome_completo
+      - cpf
+      - data_nascimento
+      - email
+      - telefone
+      description: Informe `endereco` (objeto) ou `endereco_id`.
+    Especie:
+      type: object
+      properties:
+        id: *id001
+        nome: *id002
+        descricao:
+          type: string
+          nullable: true
+        situacao: &id011
+          type: string
+          enum:
+          - ATIVA
+          - INATIVA
+    EspecieNova:
+      type: object
+      properties:
+        nome:
+          type: string
+          example: Hamster
+        descricao: *id002
+      required:
+      - nome
+    Raca:
+      type: object
+      properties:
+        id: *id001
+        nome: *id002
+        descricao:
+          type: string
+          nullable: true
+        especie_id: *id001
+        especie_nome: *id002
+        situacao: *id011
+    RacaNova:
+      type: object
+      properties:
+        nome:
+          type: string
+          example: Beagle
+        especie_id: *id001
+        descricao: *id002
+      required:
+      - nome
+      - especie_id
+    MicrochipAtual:
+      type: object
+      properties:
+        id: *id001
+        codigo:
+          type: string
+          example: '900123456789012'
+        data_vinculo: *id002
+        veterinario_id: *id001
+        veterinario_nome: *id002
+      description: Vínculo vigente (um por animal).
+    IntegracaoResumo:
+      type: object
+      properties:
+        situacao_cadastro:
+          type: string
+          enum:
+          - PENDENTE
+          - ENVIADA
+          - CONFIRMADA
+          - FALHA
+          - SEM_MICROCHIP
+          - NAO_SOLICITADO
+        protocolo_cadastro:
+          type: string
+          nullable: true
+        sincronizado: *id008
+        pendencias: *id001
+    Animal:
+      type: object
+      properties:
+        id: *id001
+        nome: *id002
+        data_nascimento:
+          type: string
+          format: date
+          example: '2026-11-05'
+          nullable: true
+        idade_estimada_meses:
+          type: integer
+          nullable: true
+        sexo:
+          type: string
+          enum:
+          - MACHO
+          - FEMEA
+        cor: *id002
+        peso_atual: &id012
+          type: number
+        tutor_id: *id001
+        especie_id: *id001
+        raca_id:
+          type: integer
+          description: Nulo = sem raça definida (SRD).
+          nullable: true
+        situacao:
+          type: string
+          enum:
+          - ATIVO
+          - INATIVO
+          - OBITO
+        data_cadastro: *id002
+        tutor_nome: *id002
+        especie_nome: *id002
+        raca_nome:
+          type: string
+          nullable: true
+        sem_raca_definida: *id008
+        microchip_atual:
+          $ref: '#/components/schemas/MicrochipAtual'
+          nullable: true
+        integracao_governo:
+          $ref: '#/components/schemas/IntegracaoResumo'
+    AnimalLista:
+      type: object
+      properties:
+        id: *id001
+        nome: *id002
+        sexo: *id002
+        cor: *id002
+        peso_atual: *id012
+        tutor_id: *id001
+        tutor_nome: *id002
+        especie_id: *id001
+        especie_nome: *id002
+        raca_id:
+          type: integer
+          nullable: true
+        raca_nome:
+          type: string
+          nullable: true
+        situacao: *id002
+        microchip:
+          type: string
+          description: Código do microchip vigente, se houver.
+          nullable: true
+    AnimalNovo:
+      type: object
+      properties:
+        nome:
+          type: string
+          example: Thor
+        tutor_id: *id001
+        especie_id: *id001
+        raca_id:
+          type: integer
+          description: Opcional. Deve pertencer à espécie informada.
+        sexo:
+          type: string
+          enum:
+          - MACHO
+          - FEMEA
+        cor:
+          type: string
+          example: Caramelo
+        peso_atual:
+          type: number
+          example: 12.5
+        data_nascimento: *id010
+        idade_estimada_meses:
+          type: integer
+          description: Use quando a data de nascimento é desconhecida.
+        situacao:
+          type: string
+          enum:
+          - ATIVO
+          - INATIVO
+          - OBITO
+      required:
+      - nome
+      - tutor_id
+      - especie_id
+      - sexo
+      - cor
+      - peso_atual
+      description: Informe `data_nascimento` OU `idade_estimada_meses`.
+    MicrochipNovo:
+      type: object
+      properties:
+        codigo:
+          type: string
+          description: Exatamente 15 dígitos (ISO 11784/11785).
+          example: '900123456789012'
+        substituir:
+          type: boolean
+          description: true para trocar o microchip vigente (histórico é preservado).
+        motivo_substituicao:
+          type: string
+          description: Obrigatório quando `substituir=true`.
+      required:
+      - codigo
+    VinculoMicrochip:
+      type: object
+      properties:
+        id: *id001
+        animal_id: *id001
+        codigo_microchip: *id002
+        data_vinculo: *id002
+        situacao:
+          type: string
+          enum:
+          - ATIVO
+          - SUBSTITUIDO
+        data_substituicao:
+          type: string
+          nullable: true
+        motivo_substituicao:
+          type: string
+          nullable: true
+        veterinario_id: *id001
+        veterinario_nome: *id002
+        crmv_numero: *id002
+        crmv_uf: *id002
+    MicrochipResposta:
+      type: object
+      properties:
+        vinculo:
+          $ref: '#/components/schemas/VinculoMicrochip'
+        animal:
+          $ref: '#/components/schemas/Animal'
+        integracao_governo:
+          $ref: '#/components/schemas/IntegracaoEnvio'
+      description: O microchip fica gravado mesmo que o governo esteja fora do ar (situação PENDENTE).
+    Integracao:
+      type: object
+      properties:
+        id: *id001
+        animal_id: *id001
+        vacina_id:
+          type: integer
+          nullable: true
+        vinculo_microchip_id:
+          type: integer
+          nullable: true
+        tipo_operacao:
+          type: string
+          enum:
+          - CADASTRO_ANIMAL
+          - ATUALIZACAO_ANIMAL
+          - VACINACAO_ANTIRRABICA
+        protocolo_externo:
+          type: string
+          description: Protocolo devolvido pelo governo.
+          nullable: true
+        chave_idempotencia:
+          type: string
+          description: 'Enviada em `Idempotency-Key`: reenviar nunca duplica.'
+        situacao: *id013
+        solicitada_em: *id002
+        respondida_em:
+          type: string
+          nullable: true
+        ultima_tentativa_em:
+          type: string
+          nullable: true
+        tentativas: *id001
+        mensagem_erro:
+          type: string
+          nullable: true
+        animal_nome: *id002
+        microchip:
+          type: string
+          nullable: true
+        payload_enviado:
+          type: object
+          description: Só no detalhe (GET /api/integracoes/{id}).
+    IntegracaoEnvio:
+      allOf:
+      - $ref: '#/components/schemas/Integracao'
+      - type: object
+        properties:
+          ultima_resposta:
+            type: object
+            properties:
+              categoria:
+                type: string
+                enum:
+                - OK
+                - INDISPONIVEL
+                - INCERTO
+                - REJEITADO
+              status_http:
+                type: integer
+                nullable: true
+              corpo:
+                type: object
+              repeticao_idempotente:
+                type: boolean
+                description: true quando o governo reconheceu a repetição e devolveu o mesmo protocolo.
+            description: 'Nulo se nada foi enviado (ex.: já confirmada).'
+    ReprocessarResumo:
+      type: object
+      properties:
+        analisadas: *id001
+        confirmadas: *id001
+        ainda_pendentes: *id001
+        falhas: *id001
+    AnimalIntegracaoGoverno:
+      allOf:
+      - $ref: '#/components/schemas/IntegracaoResumo'
+      - type: object
+        properties:
+          operacoes:
+            type: array
+            items:
+              $ref: '#/components/schemas/Integracao'
+    SincronizarResposta:
+      type: object
+      properties:
+        operacao:
+          $ref: '#/components/schemas/IntegracaoEnvio'
+        integracao_governo:
+          $ref: '#/components/schemas/IntegracaoResumo'
+    Consulta:
+      type: object
+      properties:
+        id: *id001
+        animal_id: *id001
+        veterinario_id: *id001
+        data_hora: *id002
+        motivo: *id002
+        anamnese:
+          type: string
+          nullable: true
+        sintomas:
+          type: string
+          nullable: true
+        diagnostico:
+          type: string
+          nullable: true
+        tratamento:
+          type: string
+          nullable: true
+        prescricao_medicamentos:
+          type: string
+          nullable: true
+        observacoes:
+          type: string
+          nullable: true
+        peso_kg:
+          type: number
+          nullable: true
+        temperatura_c:
+          type: number
+          nullable: true
+        situacao:
+          type: string
+          enum:
+          - AGENDADA
+          - REALIZADA
+          - CANCELADA
+          - NAO_COMPARECEU
+        animal_nome: *id002
+        veterinario_nome: *id002
+    ConsultaNova:
+      type: object
+      properties:
+        animal_id: *id001
+        veterinario_id:
+          type: integer
+          description: 'Opcional: padrão = veterinário autenticado.'
+        data_hora:
+          type: string
+          example: 2026-11-05 14:30
+        motivo:
+          type: string
+          example: Vacinação e check-up
+        anamnese: *id002
+        sintomas: *id002
+        diagnostico: *id002
+        tratamento: *id002
+        prescricao_medicamentos: *id002
+        observacoes: *id002
+        peso_kg:
+          type: number
+          description: Se a consulta é REALIZADA, atualiza o peso atual do animal.
+        temperatura_c:
+          type: number
+          example: 38.5
+        situacao:
+          type: string
+          enum:
+          - AGENDADA
+          - REALIZADA
+          - CANCELADA
+          - NAO_COMPARECEU
+      required:
+      - animal_id
+      - data_hora
+      - motivo
+    ComunicacaoVacina:
+      type: object
+      properties:
+        obrigatoria:
+          type: boolean
+          description: true somente para antirrábica APLICADA.
+        integracao_id:
+          type: integer
+          nullable: true
+        situacao:
+          type: string
+          enum: *id014
+          description: Estados da comunicação com o governo.
+          nullable: true
+        protocolo:
+          type: string
+          nullable: true
+        tentativas:
+          type: integer
+          nullable: true
+    Vacina:
+      type: object
+      properties:
+        id: *id001
+        animal_id: *id001
+        veterinario_id: *id001
+        nome_vacina: *id002
+        tipo_vacina: &id015
+          type: string
+          enum:
+          - ANTIRRABICA
+          - POLIVALENTE
+          - TRIPLICE_FELINA
+          - GRIPE_CANINA
+          - GIARDIA
+          - LEISHMANIOSE
+          - OUTRA
+          description: A antirrábica é identificada por ESTE campo, nunca pelo nome da vacina.
+        antirrabica: *id008
+        fabricante:
+          type: string
+          nullable: true
+        numero_lote:
+          type: string
+          nullable: true
+        data_aplicacao: *id010
+        dose: *id002
+        via_aplicacao: &id016
+          type: string
+          enum:
+          - SUBCUTANEA
+          - INTRAMUSCULAR
+          - INTRANASAL
+          - ORAL
+        data_proxima_dose:
+          type: string
+          format: date
+          example: '2026-11-05'
+          nullable: true
+        validade_lote:
+          type: string
+          format: date
+          example: '2026-11-05'
+          nullable: true
+        observacoes:
+          type: string
+          nullable: true
+        situacao:
+          type: string
+          enum:
+          - AGENDADA
+          - APLICADA
+          - CANCELADA
+        animal_nome: *id002
+        veterinario_nome: *id002
+        comunicacao_governo:
+          $ref: '#/components/schemas/ComunicacaoVacina'
+    VacinaNova:
+      type: object
+      properties:
+        animal_id: *id001
+        nome_vacina:
+          type: string
+          example: Antirrábica anual
+        tipo_vacina: *id015
+        dose:
+          type: string
+          example: Dose única
+        via_aplicacao: *id016
+        data_aplicacao: *id010
+        fabricante:
+          type: string
+          description: Obrigatório se APLICADA.
+          example: Zoetis
+        numero_lote:
+          type: string
+          description: Obrigatório se APLICADA.
+          example: L2026-0457
+        validade_lote:
+          type: string
+          format: date
+          example: '2027-08-31'
+          description: Obrigatória se APLICADA.
+        data_proxima_dose: *id010
+        observacoes: *id002
+        situacao:
+          type: string
+          enum:
+          - APLICADA
+          - AGENDADA
+          description: 'Padrão: APLICADA.'
+        veterinario_id:
+          type: integer
+          description: 'Opcional: padrão = veterinário autenticado.'
+      required:
+      - animal_id
+      - nome_vacina
+      - tipo_vacina
+      - dose
+      - via_aplicacao
+      - data_aplicacao
+    VacinaAplicar:
+      type: object
+      properties:
+        data_aplicacao: *id010
+        fabricante: *id002
+        numero_lote: *id002
+        validade_lote: *id010
+        data_proxima_dose: *id010
+        observacoes: *id002
+        dose: *id002
+        via_aplicacao: *id016
+      required:
+      - fabricante
+      - numero_lote
+      - validade_lote
+      description: Converte uma vacina AGENDADA em APLICADA.
+    VacinaResposta:
+      type: object
+      properties:
+        vacina:
+          $ref: '#/components/schemas/Vacina'
+        comunicacao_governo:
+          $ref: '#/components/schemas/IntegracaoEnvio'
+          nullable: true
+          description: Nulo quando a vacina não exige comunicação (não antirrábica ou ainda agendada).
+      description: Separa o registro LOCAL (já gravado) da CONFIRMAÇÃO do governo (pode estar PENDENTE).
+    ComunicacaoGoverno:
+      type: object
+      properties:
+        vacina_id: *id001
+        antirrabica: *id008
+        registro_local: *id002
+        comunicacao_obrigatoria: *id008
+        confirmacao_governo:
+          type: string
+          enum:
+          - PENDENTE
+          - ENVIADA
+          - CONFIRMADA
+          - FALHA
+          - NAO_APLICAVEL
+          - NAO_SOLICITADA
+        observacao: *id002
+        integracao:
+          $ref: '#/components/schemas/Integracao'
+          nullable: true
+    ProximaDose:
+      type: object
+      properties:
+        vacina_id: *id001
+        nome_vacina: *id002
+        tipo_vacina: *id002
+        dose: *id002
+        dose_anterior: *id002
+        data_prevista: *id010
+        origem:
+          type: string
+          enum:
+          - REFORCO_PREVISTO
+          - AGENDADA
+        dias_para_a_data: *id001
+        situacao_prazo:
+          type: string
+          enum:
+          - ATRASADA
+          - HOJE
+          - NO_PRAZO
+    Status:
+      type: object
+      properties:
+        api: *id002
+        banco:
+          type: string
+          enum:
+          - ok
+          - indisponivel
+        governo:
+          type: string
+          enum:
+          - ok
+          - indisponivel
+    ResumoPainel:
+      type: object
+      properties:
+        tutores_ativos: *id001
+        animais_ativos: *id001
+        consultas_hoje: *id001
+        consultas_agendadas: *id001
+        vacinas_com_reforco_atrasado: *id001
+        integracoes:
+          type: object
+          properties:
+            PENDENTE: *id001
+            ENVIADA: *id001
+            CONFIRMADA: *id001
+            FALHA: *id001
+        governo_disponivel: *id008
+    Simulacao:
+      type: object
+      properties:
+        modo:
+          type: string
+          enum:
+          - NORMAL
+          - INDISPONIVEL
+          - RESPOSTA_LENTA
+        atraso_s: *id012
+        falhar_proximas: *id001
+    SimulacaoNova:
+      type: object
+      properties:
+        modo:
+          type: string
+          enum:
+          - NORMAL
+          - INDISPONIVEL
+          - RESPOSTA_LENTA
+        atraso_s:
+          type: number
+          example: 6
+        falhar_proximas:
+          type: integer
+          description: As próximas N chamadas falham com 503 e depois volta ao normal.
+          example: 0
+  responses:
+    Erro400:
+      description: Requisição malformada (JSON ausente/inválido) ou código inválido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: JSON_INVALIDO
+              mensagem: Requisição malformada (JSON ausente/inválido) ou código inválido.
+    Erro401:
+      description: Token ausente, inválido, expirado ou sessão encerrada; ou veterinário inativo/sem senha confirmada.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: NAO_AUTENTICADO
+              mensagem: Token ausente, inválido, expirado ou sessão encerrada.
+    Erro403:
+      description: 'Acesso bloqueado: veterinário inativo ou senha ainda não confirmada.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: VETERINARIO_INATIVO
+              mensagem: 'Acesso bloqueado: veterinário inativo ou senha ainda não confirmada.'
+    Erro404:
+      description: Recurso não encontrado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: NAO_ENCONTRADO
+              mensagem: Recurso não encontrado.
+    Erro409:
+      description: Conflito com o estado atual (duplicidade, vínculo existente, registro em uso).
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: CPF_DUPLICADO
+              mensagem: Conflito com o estado atual (duplicidade, vínculo existente, registro em uso).
+    Erro422:
+      description: Dados inválidos (campo a campo em `detalhes`) ou regra de negócio violada.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: VALIDACAO
+              mensagem: Dados inválidos (campo a campo em `detalhes`) ou regra de negócio violada.
+    Erro429:
+      description: Muitas tentativas de confirmação de código.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: CODIGO_BLOQUEADO
+              mensagem: Muitas tentativas de confirmação de código.
+    Erro502:
+      description: Resposta inesperada do serviço externo.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: CEP_RESPOSTA_INVALIDA
+              mensagem: Resposta inesperada do serviço externo.
+    Erro503:
+      description: Serviço externo ou banco indisponível.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: CEP_INDISPONIVEL
+              mensagem: Serviço externo ou banco indisponível.
+    Erro504:
+      description: Tempo esgotado no serviço externo.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erro'
+          example:
+            erro:
+              codigo: CEP_TIMEOUT
+              mensagem: Tempo esgotado no serviço externo.
