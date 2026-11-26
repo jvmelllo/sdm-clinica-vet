@@ -1,4 +1,4 @@
-"""Execução:  python -m clinica_api"""
+"""python scripts/run_all.py"""
 import logging
 
 from .app import create_app

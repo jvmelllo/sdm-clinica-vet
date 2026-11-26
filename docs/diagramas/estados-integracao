@@ -1,0 +1,112 @@
+<mxfile host="Electron">
+  <diagram name="Página-1" id="PISQ5MzwVQRWzJwyhDAi">
+    <mxGraphModel dx="2049" dy="1219" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-1" parent="1" style="fontFamily=Arial;fontColor=#172B43;fontSize=14;whiteSpace=wrap;html=0;text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=26;fontColor=#172B43;fontStyle=1;" value="Estados da integração" vertex="1">
+          <mxGeometry height="45" width="1420" x="580" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-2" parent="1" style="fontFamily=Arial;fontColor=#172B43;fontSize=14;whiteSpace=wrap;html=0;text;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;fontSize=14;fontColor=#416989;fontStyle=0;" value="Registro local, envio, confirmação e reenvio da comunicação" vertex="1">
+          <mxGeometry height="26" width="1420" x="580" y="588" as="geometry" />
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-3" parent="1" style="fontFamily=Arial;fontColor=#172B43;fontSize=14;whiteSpace=wrap;html=0;ellipse;aspect=fixed;strokeWidth=2;strokeColor=#172B43;fillColor=#172B43;" value="" vertex="1">
+          <mxGeometry height="20" width="20" x="870" y="645" as="geometry" />
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-4" parent="1" style="fontFamily=Arial;fontColor=#172B43;fontSize=14;whiteSpace=wrap;html=0;ellipse;aspect=fixed;strokeWidth=2;strokeColor=#172B43;fillColor=#FFFFFF;" value="" vertex="1">
+          <mxGeometry height="20" width="20" x="1580" y="1275" as="geometry" />
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-5" parent="1" style="fontFamily=Arial;fontColor=#172B43;fontSize=14;whiteSpace=wrap;html=0;ellipse;strokeColor=none;fillColor=#172B43;" value="" vertex="1">
+          <mxGeometry height="10" width="10" x="1585" y="1280" as="geometry" />
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-6" parent="1" style="fontFamily=Arial;fontColor=#172B43;fontSize=14;whiteSpace=wrap;html=0;rounded=1;arcSize=12;fillColor=#FFF4D9;strokeColor=#CBA353;spacing=7;fontStyle=1;" value="PENDENTE" vertex="1">
+          <mxGeometry height="60" width="200" x="780" y="770" as="geometry" />
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-7" parent="1" style="fontFamily=Arial;fontColor=#172B43;fontSize=14;whiteSpace=wrap;html=0;rounded=1;arcSize=12;fillColor=#E7F1FC;strokeColor=#7C9CC7;spacing=7;fontStyle=1;" value="ENVIADA" vertex="1">
+          <mxGeometry height="60" width="200" x="1490" y="770" as="geometry" />
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-8" parent="1" style="fontFamily=Arial;fontColor=#172B43;fontSize=14;whiteSpace=wrap;html=0;rounded=1;arcSize=12;fillColor=#FCE8E8;strokeColor=#C57979;spacing=7;fontStyle=1;" value="FALHA" vertex="1">
+          <mxGeometry height="60" width="200" x="780" y="1100" as="geometry" />
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-9" parent="1" style="fontFamily=Arial;fontColor=#172B43;fontSize=14;whiteSpace=wrap;html=0;rounded=1;arcSize=12;fillColor=#E4F5ED;strokeColor=#72A392;spacing=7;fontStyle=1;" value="CONFIRMADA" vertex="1">
+          <mxGeometry height="60" width="200" x="1490" y="1100" as="geometry" />
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-10" edge="1" parent="1" source="MZ3x3S4fAZnwuv51E_Lw-3" style="fontFamily=Arial;fontSize=12;fontColor=#172B43;labelBackgroundColor=#FFFFFF;strokeColor=#416989;strokeWidth=1.5;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;exitPerimeter=0;entryPerimeter=0;edgeStyle=segmentEdgeStyle;rounded=0;" target="MZ3x3S4fAZnwuv51E_Lw-6" value="Registro local gravado&#xa;(outbox, mesma transação)">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-11" edge="1" parent="1" source="MZ3x3S4fAZnwuv51E_Lw-6" style="fontFamily=Arial;fontSize=12;fontColor=#172B43;labelBackgroundColor=#FFFFFF;strokeColor=#416989;strokeWidth=1.5;endArrow=block;endFill=1;exitX=1;exitY=0.22;entryX=0;entryY=0.22;exitPerimeter=0;entryPerimeter=0;edgeStyle=segmentEdgeStyle;rounded=0;" target="MZ3x3S4fAZnwuv51E_Lw-7" value="Tentativa de envio iniciada">
+          <mxGeometry relative="1" y="-12" as="geometry" />
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-12" edge="1" parent="1" source="MZ3x3S4fAZnwuv51E_Lw-6" style="fontFamily=Arial;fontSize=12;fontColor=#172B43;labelBackgroundColor=#FFFFFF;strokeColor=#416989;strokeWidth=1.5;endArrow=block;endFill=1;exitX=1;exitY=0.78;entryX=0;entryY=0.78;exitPerimeter=0;entryPerimeter=0;edgeStyle=segmentEdgeStyle;rounded=0;" target="MZ3x3S4fAZnwuv51E_Lw-7" value="Reenvio manual ou automático">
+          <mxGeometry relative="1" y="13" as="geometry">
+            <Array as="points">
+              <mxPoint x="1030" y="853" />
+              <mxPoint x="1440" y="853" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-13" edge="1" parent="1" source="MZ3x3S4fAZnwuv51E_Lw-7" style="fontFamily=Arial;fontSize=12;fontColor=#172B43;labelBackgroundColor=#FFFFFF;strokeColor=#416989;strokeWidth=1.5;endArrow=block;endFill=1;exitX=0.68;exitY=0;entryX=0.86;entryY=0;exitPerimeter=0;entryPerimeter=0;edgeStyle=segmentEdgeStyle;rounded=0;" target="MZ3x3S4fAZnwuv51E_Lw-6" value="Governo indisponível (503 / conexão recusada)">
+          <mxGeometry relative="1" y="-12" as="geometry">
+            <Array as="points">
+              <mxPoint x="1626" y="696" />
+              <mxPoint x="952" y="696" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-14" edge="1" parent="1" source="MZ3x3S4fAZnwuv51E_Lw-6" style="fontFamily=Arial;fontSize=12;fontColor=#172B43;labelBackgroundColor=#FFFFFF;strokeColor=#416989;strokeWidth=1.5;endArrow=block;endFill=1;exitX=0.32;exitY=1;entryX=0.32;entryY=0;exitPerimeter=0;entryPerimeter=0;edgeStyle=segmentEdgeStyle;rounded=0;" target="MZ3x3S4fAZnwuv51E_Lw-8" value="Limite de tentativas automáticas">
+          <mxGeometry relative="1" y="12" as="geometry">
+            <Array as="points">
+              <mxPoint x="685" y="892" />
+              <mxPoint x="685" y="1035" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-15" edge="1" parent="1" source="MZ3x3S4fAZnwuv51E_Lw-7" style="fontFamily=Arial;fontSize=12;fontColor=#172B43;labelBackgroundColor=#FFFFFF;strokeColor=#416989;strokeWidth=1.5;endArrow=block;endFill=1;exitX=0.08;exitY=1;entryX=0.85;entryY=0;exitPerimeter=0;entryPerimeter=0;edgeStyle=segmentEdgeStyle;rounded=0;" target="MZ3x3S4fAZnwuv51E_Lw-8" value="Governo rejeitou (4xx) ou&#xa;limite de tentativas automáticas">
+          <mxGeometry relative="1" y="-14" as="geometry">
+            <Array as="points">
+              <mxPoint x="1506" y="913" />
+              <mxPoint x="950" y="913" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-16" edge="1" parent="1" source="MZ3x3S4fAZnwuv51E_Lw-8" style="fontFamily=Arial;fontSize=12;fontColor=#172B43;labelBackgroundColor=#FFFFFF;strokeColor=#416989;strokeWidth=1.5;endArrow=block;endFill=1;exitX=1;exitY=0.34;entryX=0.27;entryY=1;exitPerimeter=0;entryPerimeter=0;edgeStyle=segmentEdgeStyle;rounded=0;" target="MZ3x3S4fAZnwuv51E_Lw-7" value="Reenvio manual">
+          <mxGeometry relative="1" x="0.02" y="10" as="geometry">
+            <Array as="points">
+              <mxPoint x="1250" y="1120" />
+              <mxPoint x="1250" y="985" />
+              <mxPoint x="1544" y="985" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-17" edge="1" parent="1" source="MZ3x3S4fAZnwuv51E_Lw-7" style="fontFamily=Arial;fontSize=12;fontColor=#172B43;labelBackgroundColor=#FFFFFF;strokeColor=#416989;strokeWidth=1.5;endArrow=block;endFill=1;exitX=0.72;exitY=1;entryX=0.72;entryY=0;exitPerimeter=0;entryPerimeter=0;edgeStyle=segmentEdgeStyle;rounded=0;" target="MZ3x3S4fAZnwuv51E_Lw-9" value="Governo respondeu&#xa;200/201 com protocolo">
+          <mxGeometry relative="1" y="-16" as="geometry" />
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-18" edge="1" parent="1" source="MZ3x3S4fAZnwuv51E_Lw-7" style="fontFamily=Arial;fontSize=12;fontColor=#172B43;labelBackgroundColor=#FFFFFF;strokeColor=#416989;strokeWidth=1.5;endArrow=block;endFill=1;exitX=1;exitY=0.22;entryX=1;entryY=0.78;exitPerimeter=0;entryPerimeter=0;edgeStyle=segmentEdgeStyle;rounded=0;" target="MZ3x3S4fAZnwuv51E_Lw-7" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1975" y="783.2" />
+              <mxPoint x="1975" y="816.8" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-19" parent="1" style="fontFamily=Arial;fontColor=#172B43;fontSize=14;whiteSpace=wrap;html=0;text;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontColor=#416989;fontStyle=0;" value="Timeout ou 5xx&#xa;Resultado incerto, reenvio seguro" vertex="1">
+          <mxGeometry height="34" width="263" x="1701" y="784" as="geometry" />
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-20" edge="1" parent="1" source="MZ3x3S4fAZnwuv51E_Lw-9" style="fontFamily=Arial;fontSize=12;fontColor=#172B43;labelBackgroundColor=#FFFFFF;strokeColor=#416989;strokeWidth=1.5;endArrow=block;endFill=1;exitX=1;exitY=0.22;entryX=1;entryY=0.78;exitPerimeter=0;entryPerimeter=0;edgeStyle=segmentEdgeStyle;rounded=0;" target="MZ3x3S4fAZnwuv51E_Lw-9" value="">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1975" y="1113.2" />
+              <mxPoint x="1975" y="1146.8" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-21" parent="1" style="fontFamily=Arial;fontColor=#172B43;fontSize=14;whiteSpace=wrap;html=0;text;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=12;fontColor=#416989;fontStyle=0;" value="Reenvio forçado&#xa;Idempotente, preserva o protocolo" vertex="1">
+          <mxGeometry height="34" width="263" x="1701" y="1114" as="geometry" />
+        </mxCell>
+        <mxCell id="MZ3x3S4fAZnwuv51E_Lw-22" edge="1" parent="1" source="MZ3x3S4fAZnwuv51E_Lw-9" style="fontFamily=Arial;fontSize=12;fontColor=#172B43;labelBackgroundColor=#FFFFFF;strokeColor=#416989;strokeWidth=1.5;endArrow=block;endFill=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;exitPerimeter=0;entryPerimeter=0;edgeStyle=segmentEdgeStyle;rounded=0;" target="MZ3x3S4fAZnwuv51E_Lw-4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
